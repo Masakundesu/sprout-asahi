@@ -1,0 +1,2 @@
+# SPROUT runs on Python 3.9+ stdlib only — no third-party packages required.
+# This file exists so Render auto-detects the runtime as Python.

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SPROUT — Asahi R&D Ideation Hub</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23DA3A2C'/%3E%3Cpath d='M20 42c0-10 6-18 12-18s12 8 12 18' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Cpath d='M32 24V14' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E" />
+
+  <!-- Tailwind Play CDN -->
+  <script src="https://cdn.tailwindcss.com?plugins=typography,forms"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            asahi:   { 50:'#FFF5F2', 100:'#FFE5DE', 200:'#FCC9BE', 300:'#F8A395', 400:'#F37261', 500:'#E84535', 600:'#C2301F', 700:'#9B241A', 800:'#7A1F18', 900:'#4A1310' },
+            sprout:  { 50:'#F2FBF5', 100:'#E0F5E5', 200:'#BFEBC9', 300:'#8FD9A2', 400:'#5BBE76', 500:'#37A155', 600:'#288343', 700:'#216938', 800:'#1D5430', 900:'#143922' },
+            ink:     { 50:'#F7F8FA', 100:'#EEF0F4', 200:'#D9DEE6', 300:'#B9C1CE', 400:'#7E8AA0', 500:'#566079', 600:'#3B4459', 700:'#2A3143', 800:'#1A1F2D', 900:'#0D111A' },
+            cream:   { 50:'#FBF9F5', 100:'#F5F1E8', 200:'#EAE3D2' }
+          },
+          fontFamily: {
+            sans: ['"Inter"','"Noto Sans JP"','system-ui','-apple-system','Segoe UI','Roboto','sans-serif'],
+            display: ['"Inter"','"Noto Serif JP"','system-ui','serif'],
+            mono: ['"JetBrains Mono"','ui-monospace','SFMono-Regular','monospace']
+          },
+          boxShadow: {
+            card: '0 1px 2px rgba(16,24,40,0.04), 0 1px 3px rgba(16,24,40,0.06)',
+            pop:  '0 10px 30px -8px rgba(16,24,40,0.18), 0 2px 6px rgba(16,24,40,0.06)'
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- React (development builds — easier for in-browser Babel) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    html, body { background:#FBF9F5; color:#0D111A; }
+    body { font-family: 'Inter','Noto Sans JP',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #CBD2DD; border-radius: 8px; border: 2px solid #FBF9F5; }
+    ::-webkit-scrollbar-thumb:hover { background: #A8B3C4; }
+    /* Initial loader */
+    #loader { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background:#FBF9F5; z-index: 9999; transition: opacity .4s ease; }
+    #loader .dot { width:10px; height:10px; background:#E84535; border-radius:50%; animation: pulse 1.4s infinite ease-in-out; margin: 0 4px; }
+    #loader .dot:nth-child(2){ animation-delay: .2s; background:#37A155; }
+    #loader .dot:nth-child(3){ animation-delay: .4s; background:#F37261; }
+    @keyframes pulse { 0%,80%,100% { transform: scale(.6); opacity:.4 } 40% { transform: scale(1); opacity:1 } }
+    .fade-in { animation: fadein .35s ease-out both; }
+    @keyframes fadein { from { opacity:0; transform: translateY(4px) } to { opacity:1; transform: none } }
+    .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    .line-clamp-4 { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+    .gradient-hero { background: linear-gradient(135deg, #FFFAF6 0%, #FFFFFF 50%, #F4FBF6 100%); }
+    .gradient-hero-accent { background:
+      radial-gradient(800px 280px at 0% 0%, rgba(232,69,53,0.08), transparent 70%),
+      radial-gradient(900px 320px at 100% 100%, rgba(55,161,85,0.07), transparent 70%);
+    }
+    .prose-asahi h1,.prose-asahi h2,.prose-asahi h3{ letter-spacing:-.01em; }
+    details > summary { list-style: none; cursor:pointer; }
+    details > summary::-webkit-details-marker { display:none; }
+
+    /* Markdown-like for idea body */
+    .idea-body p { margin-bottom: .75rem; line-height: 1.8; }
+    .idea-body ul { list-style: disc; padding-left: 1.25rem; margin-bottom: .75rem; }
+    .idea-body li { margin-bottom: .25rem; line-height: 1.8; }
+
+    /* AI typing cursor */
+    .blink::after { content:"▍"; animation: blink 1s steps(2,start) infinite; margin-left: 2px; opacity:.7; }
+    @keyframes blink { to { visibility: hidden; } }
+  </style>
+</head>
+<body>
+  <div id="loader">
+    <div class="flex flex-col items-center">
+      <div class="flex mb-4"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="text-sm text-ink-500 tracking-widest font-semibold">SPROUT</div>
+      <div class="text-[11px] text-ink-400 mt-1">Asahi R&amp;D Ideation Hub</div>
+    </div>
+  </div>
+
+  <div id="root"></div>
+
+  <!-- cache-bust data/app scripts during active development -->
+  <script>
+    (function(){
+      var v = Date.now();
+      document.write('<script src="./data.js?v=' + v + '"><' + '/script>');
+      document.write('<script type="text/babel" data-presets="react" src="./app.jsx?v=' + v + '"><' + '/script>');
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: sprout-asahi
+    runtime: python
+    region: singapore
+    plan: free
+    buildCommand: "python -m pip install --upgrade pip"
+    startCommand: "python server.py"
+    healthCheckPath: /api/sources
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SPROUT_CACHE_TTL
+        value: "900"
+      - key: SPROUT_LLM_MODEL
+        value: "claude-haiku-4-5-20251001"
+      - key: SPROUT_LLM_TOP_N
+        value: "20"
+      - key: ANTHROPIC_API_KEY
+        sync: false

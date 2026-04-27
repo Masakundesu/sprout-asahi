@@ -1,0 +1,3304 @@
+/* ============================================================
+ *  SPROUT — Asahi R&D Ideation Hub
+ *  Single-file React app (JSX via Babel Standalone)
+ *  No build step. Data comes from window.SPROUT_DATA.
+ * ============================================================ */
+
+const { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext, Fragment } = React;
+
+// ---------------------------------------------------------------
+//  State persistence (localStorage) — lightweight store
+// ---------------------------------------------------------------
+const LS_KEY = "sprout:v1";
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+function saveState(s) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
+}
+function defaultState(data) {
+  // --- 2つのサンプルアイデアに紐づく初期判断(例示のため) ---
+  const initialDecisions = {
+    // 採択済み例 (3役員全員が承認)
+    i_airbeer: {
+      u_nakamura:  { decision:"approve", note:"技術面の裏付けは十分。量産化の詰めは残るが GO。",                             at:"2026-04-06" },
+      u_hayashida: { decision:"approve", note:"別スキーム(子会社化)で独立採算にすればさらに収益性が見込める。",               at:"2026-04-07" },
+      u_ueda:      { decision:"approve", note:"採択します。CO2-LOOP外販の発想まで踏み込んでいる点を高く評価。",               at:"2026-04-18" },
+    },
+    // レビュー中例 (林田:承認 / 中村:保留 / 上田:未判断)
+    i_soberwellness: {
+      u_hayashida: { decision:"approve", note:"GMV想定は保守的。投資インテンシティを上げて米Athletic級を狙うべき。",          at:"2026-04-22" },
+      u_nakamura:  { decision:"hold",    note:"ブランド設計次第。カニバリを抑えるスキームが欲しい。",                         at:"2026-04-23" },
+    },
+  };
+
+  // サンプルアイデア以外のステータス上書きはなし
+  const initialStatusOverride = {};
+
+  // --- Idea version history (サンプル用) ---
+  //  i_soberwellness に、過去2版の差分を仕込んでおく(改訂ストーリーを見せる)
+  const initialHistory = {
+    i_soberwellness: [
+      {
+        v: 1, at: "2026-04-15 09:00", by: "u_shibata",
+        changeNote: "初稿 (プレミアム・ノンアル単品として提出)",
+        format: {
+          problem: "若年層のアルコール離れが起きており、新規事業が必要。",
+          customer: "20-30代の都市部男女。",
+          solution: "REAL-ZERO を使った本格ノンアルビール。",
+          unfairAdvantage: "自社ノンアル発酵の官能データ。",
+          marketSize: "国内ノンアル市場 $1.2B (2028)。",
+          goToMarket: "Phase1: 全国CVS展開。",
+          businessModel: "小売中心、単価200円。",
+          competitors: "既存ノンアルブランド各社。",
+          roadmap: [{ period:"〜2026 Q4", milestone:"商品設計" }],
+          risks:  ["既存ブランドとのカニバリ"],
+          ask: "開発費 8,000万円。"
+        }
+      },
+      {
+        v: 2, at: "2026-04-19 14:30", by: "u_shibata",
+        changeNote: "山田さんのFBを受けて、単品→ライフスタイルブランド化。GLP-1 トレンドを追加。",
+        format: {
+          problem: "GLP-1 の普及で『飲む量 × 飲む動機』の両方が構造変化。既存のビール事業の将来需要が収縮する可能性。",
+          customer: "都市部 25-45歳、健康・パフォーマンスに投資する層。プライマリは『飲酒習慣を減らしつつも体験の豊かさを捨てたくない人』。",
+          solution: "REAL-ZERO の本格風味 × Hop-β のリラックス機能性を掛け合わせた、気分デザインのノンアルプレミアムブランド。",
+          unfairAdvantage: "20年超の官能評価データと、独自酵母・独自機能性素材。",
+          marketSize: "国内 $2.5B + 海外 $28B(2030予測)。初期3年で国内 50億円 GMV 目標。",
+          goToMarket: "Phase1: プレミアム外食 / Phase2: 高感度スーパー+EC / Phase3: GMS・海外。",
+          businessModel: "D2Cサブスク + 外食BtoB + プレミアム小売。",
+          competitors: "Athletic Brewing, Recess, 国内大手各社のノンアル派生。",
+          roadmap: [
+            { period:"〜2026 Q3", milestone:"プロトタイプ5SKU試作" },
+            { period:"2026 Q4",  milestone:"都内ゼロプルーフバー 3店舗で先行" },
+            { period:"2027 Q1",  milestone:"D2C ローンチ" },
+          ],
+          risks: ["機能性表示の取得遅延","プレミアム単価の受容性"],
+          ask: "R&D+マーケ 1.2億円。",
+        }
+      },
+      // v3 = current (同じデータを data.js から使う想定、ここには出さない)
+    ],
+  };
+
+  // Structured budget (億円) — サンプル2件のみ
+  const budgets = {
+    i_soberwellness: 1.8,
+    i_airbeer: 3.2,
+  };
+
+  // Post-approval portfolio tracking (milestones for 採択 ideas)
+  const portfolio = {
+    i_airbeer: {
+      progress: 42,
+      nextGate: "2026-06-15 Phase 1 プロトタイプ試作レビュー",
+      milestones: [
+        { at:"2026-04-18", label:"採択決定", done:true },
+        { at:"2026-05-01", label:"チーム編成完了 (4名)", done:true },
+        { at:"2026-06-15", label:"Phase 1 プロト試作", done:false, current:true },
+        { at:"2026-08-30", label:"欧州小売2社との商談",  done:false },
+        { at:"2026-Q4",    label:"欧州ローンチ判定ゲート", done:false },
+      ],
+      kpi: { budget: 3.2, spent: 0.6, team: 4 },
+    },
+  };
+
+  return {
+    likedArticles: {},                  // id -> true
+    savedArticles: {},                  // id -> true
+    ideaLikes: Object.fromEntries(data.ideas.map(i => [i.id, i.likes])),
+    ideaLikedBy: Object.fromEntries(data.ideas.map(i => [i.id, [...(i.likedBy||[])]])),
+    extraIdeas: [],
+    extraFeedback: [],
+    dismissedSuggestions: {},
+    streak: { count: 0, lastPost: null },
+
+    // --- personalization / onboarding ---
+    prefs: {
+      onboarded: false,
+      focusSeeds:    ["s_yas17","s_hopbeta","s_lb4012"],  // 担当シーズ
+      focusDomains:  ["発酵/酵母","健康/機能性","飲料全般"], // 関心カテゴリ
+      depth: "regular",                                    // light|regular|deep
+    },
+
+    // --- read state (unread tracking) ---
+    readIdeas: {},       // ideaId -> ISO timestamp last read
+    readFeedback: {},    // feedbackId -> true
+
+    // --- decisions (exec workflow) ---
+    decisions: initialDecisions,  // { ideaId: { userId: { decision, note, at } } }
+    ideaStatusOverride: initialStatusOverride,
+    budgets,
+    portfolio,
+
+    // --- version history ---
+    ideaHistory: initialHistory,  // { ideaId: [ {v, at, by, changeNote, format} ] }
+  };
+}
+
+// Global app store (custom hook)
+function useStore() {
+  const data = window.SPROUT_DATA;
+  const [state, setState] = useState(() => {
+    const saved = loadState();
+    if (!saved) return defaultState(data);
+    // Merge defaults with saved — so adding new fields in later versions won't break old state
+    const fresh = defaultState(data);
+    return { ...fresh, ...saved,
+      prefs:        { ...fresh.prefs,        ...(saved.prefs||{}) },
+      decisions:    { ...fresh.decisions,    ...(saved.decisions||{}) },
+      budgets:      { ...fresh.budgets,      ...(saved.budgets||{}) },
+      portfolio:    { ...fresh.portfolio,    ...(saved.portfolio||{}) },
+      ideaHistory:  { ...fresh.ideaHistory,  ...(saved.ideaHistory||{}) },
+      readIdeas:    { ...(saved.readIdeas||{}) },
+      readFeedback: { ...(saved.readFeedback||{}) },
+    };
+  });
+  useEffect(() => { saveState(state); }, [state]);
+
+  const api = useMemo(() => ({
+    toggleArticleLike: (id) => setState(s => ({ ...s, likedArticles: toggle(s.likedArticles, id) })),
+    toggleArticleSave: (id) => setState(s => ({ ...s, savedArticles: toggle(s.savedArticles, id) })),
+    toggleIdeaLike: (ideaId, userId="u_shibata") => setState(s => {
+      const liked = (s.ideaLikedBy[ideaId]||[]).includes(userId);
+      const nextLikedBy = liked
+        ? (s.ideaLikedBy[ideaId]||[]).filter(u => u !== userId)
+        : [...(s.ideaLikedBy[ideaId]||[]), userId];
+      const nextLikes = (s.ideaLikes[ideaId]||0) + (liked ? -1 : 1);
+      return { ...s, ideaLikes: {...s.ideaLikes, [ideaId]: nextLikes}, ideaLikedBy: {...s.ideaLikedBy, [ideaId]: nextLikedBy} };
+    }),
+    addIdea: (idea) => setState(s => ({ ...s, extraIdeas: [idea, ...s.extraIdeas], ideaLikes: {...s.ideaLikes, [idea.id]: 0}, ideaLikedBy: {...s.ideaLikedBy, [idea.id]: []} })),
+    addFeedback: (fb) => setState(s => ({ ...s, extraFeedback: [...s.extraFeedback, fb] })),
+    dismissSuggestion: (id) => setState(s => ({ ...s, dismissedSuggestions: { ...s.dismissedSuggestions, [id]: true } })),
+    reset: () => setState(defaultState(data)),
+
+    // --- prefs ---
+    setPrefs: (patch) => setState(s => ({ ...s, prefs: { ...s.prefs, ...patch, onboarded: true } })),
+    resetOnboarding: () => setState(s => ({ ...s, prefs: { ...s.prefs, onboarded: false } })),
+
+    // --- read tracking ---
+    markIdeaRead: (ideaId) => setState(s => ({ ...s, readIdeas: { ...s.readIdeas, [ideaId]: new Date().toISOString() } })),
+    markFeedbackRead: (fbId) => setState(s => ({ ...s, readFeedback: { ...s.readFeedback, [fbId]: true } })),
+
+    // --- version history ---
+    snapshotIdea: (ideaId, snapshot) => setState(s => {
+      const prev = s.ideaHistory[ideaId] || [];
+      const v = (prev[prev.length-1]?.v || 0) + 1;
+      const next = [...prev, { ...snapshot, v, at: new Date().toISOString().slice(0,16).replace("T"," ") }];
+      return { ...s, ideaHistory: { ...s.ideaHistory, [ideaId]: next } };
+    }),
+
+    // --- decision workflow ---
+    decideIdea: (ideaId, userId, decision, note="") => setState(s => {
+      const cur = s.decisions[ideaId] || {};
+      const next = { ...cur, [userId]: { decision, note, at: new Date().toISOString().slice(0,10) } };
+      // If approved by ≥2 execs, mark idea as 採択
+      const approvedCount = Object.values(next).filter(d => d.decision === "approve").length;
+      const rejectedAny = Object.values(next).some(d => d.decision === "reject");
+      const ideaStatusOverride = approvedCount >= 2 ? "採択"
+                               : rejectedAny       ? "差し戻し"
+                               : Object.keys(next).length > 0 ? "役員レビュー中"
+                               : undefined;
+      return {
+        ...s,
+        decisions: { ...s.decisions, [ideaId]: next },
+        ideaStatusOverride: { ...(s.ideaStatusOverride||{}), ...(ideaStatusOverride ? { [ideaId]: ideaStatusOverride } : {}) },
+      };
+    }),
+  }), [data]);
+
+  function toggle(obj, id) { const c = {...obj}; if (c[id]) delete c[id]; else c[id] = true; return c; }
+  return { state, ...api };
+}
+
+// ---------------------------------------------------------------
+//  Helpers: status, consensus, unread
+// ---------------------------------------------------------------
+function effectiveStatus(idea, state) {
+  return (state.ideaStatusOverride && state.ideaStatusOverride[idea.id]) || idea.status;
+}
+function consensusOf(ideaId, state) {
+  const dd = state.decisions[ideaId] || {};
+  const entries = Object.entries(dd);
+  return {
+    approve: entries.filter(([,d]) => d.decision === "approve"),
+    reject:  entries.filter(([,d]) => d.decision === "reject"),
+    hold:    entries.filter(([,d]) => d.decision === "hold"),
+    all: entries,
+  };
+}
+function useUnreadFBCount() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const me = data.me;
+  return useMemo(() => {
+    const myIdeas = new Set(allIdeas(data, app).filter(i => i.author === me.id).map(i => i.id));
+    return allFeedback(data, app)
+      .filter(f => myIdeas.has(f.ideaId) && f.author !== me.id && !app.state.readFeedback[f.id])
+      .length;
+  }, [app.state.readFeedback, app.state.extraFeedback, app.state.extraIdeas]);
+}
+
+// ---------------------------------------------------------------
+//  Live ingestion hook — fetches /api/articles from local Python server
+// ---------------------------------------------------------------
+function useLiveArticles() {
+  const [live, setLive] = useState({
+    articles: [],
+    sourceStatus: {},
+    fetchedAt: null,
+    loading: true,
+    error: null,
+    lastRefreshedAt: null,
+  });
+  const refresh = useCallback((force = false) => {
+    setLive(s => ({ ...s, loading: true, error: null }));
+    fetch(`/api/articles${force ? "?refresh=1" : ""}`)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => setLive({
+        articles: d.articles || [],
+        sourceStatus: d.sourceStatus || {},
+        fetchedAt: d.fetchedAt,
+        cacheTTL: d.cacheTTL,
+        llm: d.llm || { enabled: false },
+        loading: false,
+        error: null,
+        lastRefreshedAt: new Date().toISOString(),
+      }))
+      .catch(e => setLive(s => ({ ...s, loading: false, error: String(e.message || e) })));
+  }, []);
+  useEffect(() => { refresh(false); }, [refresh]);
+  return { ...live, refresh };
+}
+
+// ---------------------------------------------------------------
+//  Tiny hash router
+// ---------------------------------------------------------------
+function useHashRoute() {
+  const [hash, setHash] = useState(() => window.location.hash || "#/");
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash || "#/");
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  const parts = hash.replace(/^#\/?/, "").split("?")[0].split("/").filter(Boolean);
+  const query = Object.fromEntries(new URLSearchParams((hash.split("?")[1] || "")));
+  return { hash, parts, query, navigate: (h) => { window.location.hash = h; } };
+}
+
+// ---------------------------------------------------------------
+//  SVG Icons (inline — lucide-like)
+// ---------------------------------------------------------------
+function Icon({ name, className = "w-4 h-4", strokeWidth = 1.75 }) {
+  const common = { fill: "none", stroke: "currentColor", strokeWidth, strokeLinecap: "round", strokeLinejoin: "round", viewBox: "0 0 24 24", className };
+  switch (name) {
+    case "sparkles": return <svg {...common}><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>;
+    case "home":     return <svg {...common}><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z"/></svg>;
+    case "rss":      return <svg {...common}><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>;
+    case "beaker":   return <svg {...common}><path d="M4.5 3h15M6 3v7.5L3 19a2 2 0 0 0 1.8 3h14.4A2 2 0 0 0 21 19l-3-8.5V3"/><path d="M7 15h10"/></svg>;
+    case "bulb":     return <svg {...common}><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.4c.8.8 1.4 1.8 1.6 2.6h4.8c.2-.8.8-1.8 1.6-2.6A6 6 0 0 0 12 3Z"/></svg>;
+    case "inbox":    return <svg {...common}><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5 5h14l3 7v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7l3-7Z"/></svg>;
+    case "user":     return <svg {...common}><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>;
+    case "search":   return <svg {...common}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>;
+    case "bell":     return <svg {...common}><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9Z"/><path d="M10.5 21a1.5 1.5 0 0 0 3 0"/></svg>;
+    case "heart":    return <svg {...common}><path d="M20.8 5.6A5.5 5.5 0 0 0 12 4a5.5 5.5 0 0 0-8.8 1.6C1.6 8.8 3.7 12.7 12 20c8.3-7.3 10.4-11.2 8.8-14.4Z"/></svg>;
+    case "heart-fill": return <svg viewBox="0 0 24 24" className={className} fill="currentColor"><path d="M20.8 5.6A5.5 5.5 0 0 0 12 4a5.5 5.5 0 0 0-8.8 1.6C1.6 8.8 3.7 12.7 12 20c8.3-7.3 10.4-11.2 8.8-14.4Z"/></svg>;
+    case "bookmark": return <svg {...common}><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>;
+    case "bookmark-fill": return <svg viewBox="0 0 24 24" className={className} fill="currentColor"><path d="M6 3h12v18l-6-4-6 4V3Z"/></svg>;
+    case "pencil":   return <svg {...common}><path d="M4 20h4l10.5-10.5-4-4L4 16v4Z"/><path d="m13.5 5.5 4 4"/></svg>;
+    case "plus":     return <svg {...common}><path d="M12 5v14M5 12h14"/></svg>;
+    case "arrow-right": return <svg {...common}><path d="M5 12h14M13 5l7 7-7 7"/></svg>;
+    case "arrow-up-right": return <svg {...common}><path d="M7 17 17 7M8 7h9v9"/></svg>;
+    case "chevron-right": return <svg {...common}><path d="m9 6 6 6-6 6"/></svg>;
+    case "chevron-down":  return <svg {...common}><path d="m6 9 6 6 6-6"/></svg>;
+    case "link":     return <svg {...common}><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>;
+    case "fire":     return <svg {...common}><path d="M12 22c4 0 7-3 7-7 0-4-3-5-3-9-3 2-5 5-5 8-1-1-2-2-2-4-2 2-3 4-3 5 0 4 3 7 6 7Z"/></svg>;
+    case "globe":    return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>;
+    case "chart":    return <svg {...common}><path d="M3 20h18M7 16v-6M12 16V8M17 16v-10"/></svg>;
+    case "tag":      return <svg {...common}><path d="M3 12V4h8l10 10-8 8L3 12Z"/><circle cx="8" cy="8" r="1.5"/></svg>;
+    case "send":     return <svg {...common}><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>;
+    case "check":    return <svg {...common}><path d="m5 12 5 5L20 7"/></svg>;
+    case "eye":      return <svg {...common}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>;
+    case "clock":    return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>;
+    case "filter":   return <svg {...common}><path d="M3 5h18l-7 9v5l-4 2v-7L3 5Z"/></svg>;
+    case "message":  return <svg {...common}><path d="M4 5h16v11H8l-4 4V5Z"/></svg>;
+    case "flame":    return <svg {...common}><path d="M12 22c4 0 7-2.5 7-7 0-3-2-5-2-8 0 0-2 1-3 3-1-1-1-3-1-5-4 4-7 6-7 11 0 3.5 2 6 6 6Z"/></svg>;
+    case "trophy":   return <svg {...common}><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M5 4h2M17 4h2M12 14v4M8 20h8"/></svg>;
+    case "bolt":     return <svg {...common}><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></svg>;
+    case "database": return <svg {...common}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>;
+    case "x":        return <svg {...common}><path d="M6 6l12 12M6 18 18 6"/></svg>;
+    case "dots":     return <svg {...common}><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>;
+    case "stars":    return <svg {...common}><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>;
+    case "award":    return <svg {...common}><circle cx="12" cy="9" r="6"/><path d="m8 14-2 8 6-3 6 3-2-8"/></svg>;
+    case "quote":    return <svg {...common}><path d="M7 7h4v4H7z"/><path d="M13 7h4v4h-4z"/><path d="M7 11v3a3 3 0 0 0 3 3"/><path d="M13 11v3a3 3 0 0 0 3 3"/></svg>;
+    case "logo":     return <svg viewBox="0 0 64 64" className={className}><circle cx="32" cy="32" r="30" fill="#DA3A2C"/><path d="M20 42c0-10 6-18 12-18s12 8 12 18" stroke="white" strokeWidth="4" fill="none" strokeLinecap="round"/><path d="M32 24V14" stroke="white" strokeWidth="4" strokeLinecap="round"/></svg>;
+    default: return null;
+  }
+}
+
+// ---------------------------------------------------------------
+//  Small UI primitives
+// ---------------------------------------------------------------
+function Avatar({ user, size = 8, className = "" }) {
+  if (!user) return null;
+  const dim = `h-${size} w-${size}`;
+  return (
+    <div className={`${dim} ${user.color} text-white font-semibold rounded-full flex items-center justify-center text-xs shadow-sm ring-1 ring-white/60 ${className}`}>
+      {user.avatar}
+    </div>
+  );
+}
+
+function Badge({ tone = "slate", children, className = "" }) {
+  const tones = {
+    slate:   "bg-ink-100 text-ink-700",
+    red:     "bg-asahi-50 text-asahi-700 ring-1 ring-asahi-200",
+    green:   "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+    blue:    "bg-sky-50 text-sky-700 ring-1 ring-sky-200",
+    amber:   "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+    violet:  "bg-violet-50 text-violet-700 ring-1 ring-violet-200",
+    dark:    "bg-ink-900 text-white",
+  };
+  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${tones[tone]} ${className}`}>{children}</span>;
+}
+
+function Button({ variant = "primary", size = "md", icon, children, className = "", ...p }) {
+  const base = "inline-flex items-center justify-center gap-1.5 font-semibold rounded-lg transition active:scale-[.98] disabled:opacity-50";
+  const sizes = { sm:"h-8 px-3 text-[12px]", md:"h-9 px-3.5 text-[13px]", lg:"h-11 px-5 text-[14px]" };
+  const variants = {
+    primary:  "bg-asahi-500 hover:bg-asahi-600 text-white shadow-sm",
+    dark:     "bg-ink-900 hover:bg-ink-800 text-white shadow-sm",
+    ghost:    "text-ink-700 hover:bg-ink-100",
+    outline:  "border border-ink-200 hover:bg-ink-50 text-ink-800",
+    soft:     "bg-ink-100 hover:bg-ink-200 text-ink-800",
+    success:  "bg-emerald-600 hover:bg-emerald-700 text-white",
+  };
+  return (
+    <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} {...p}>
+      {icon && <Icon name={icon} className="w-4 h-4" />}
+      {children}
+    </button>
+  );
+}
+
+function Card({ children, className = "", as: As = "div", ...p }) {
+  return <As className={`bg-white rounded-xl shadow-card ring-1 ring-ink-100/80 ${className}`} {...p}>{children}</As>;
+}
+
+function Tag({ children, active=false, onClick }) {
+  return (
+    <button onClick={onClick} className={`px-3 h-7 rounded-full text-[11.5px] font-semibold border transition whitespace-nowrap ${active ? "bg-asahi-500 text-white border-asahi-500 shadow-sm" : "bg-white text-ink-700 border-ink-200 hover:border-asahi-300 hover:text-asahi-700"}`}>
+      {children}
+    </button>
+  );
+}
+
+// Accessible modal shell
+function Modal({ open, onClose, children, size = "lg" }) {
+  if (!open) return null;
+  const widths = { md:"max-w-md", lg:"max-w-2xl", xl:"max-w-4xl", "2xl":"max-w-6xl" };
+  return (
+    <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 bg-ink-900/40 backdrop-blur-sm fade-in" onClick={onClose}>
+      <div className={`bg-white w-full ${widths[size]} rounded-2xl shadow-pop ring-1 ring-ink-200 overflow-hidden`} onClick={e => e.stopPropagation()}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  App Shell (Sidebar + Header + Main)
+// ---------------------------------------------------------------
+const StoreCtx = createContext(null);
+const useApp = () => useContext(StoreCtx);
+const LiveCtx = createContext(null);
+const useLive = () => useContext(LiveCtx);
+
+function Shell({ children }) {
+  const { navigate, parts } = useHashRoute();
+  const app = useApp();
+  const route = parts[0] || "dashboard";
+  const unreadFBCount = useUnreadFBCount();
+
+  const nav = [
+    { key: "dashboard", label: "ダッシュボード", sub:"萌芽情報",   icon:"rss" },
+    { key: "ideas",     label: "アイデア",       sub:"全員の提案", icon:"bulb" },
+    { key: "seeds",     label: "シーズ",         sub:"自社の技術", icon:"beaker" },
+    { key: "inbox",     label: "受信箱",         sub:"自分宛のFB", icon:"inbox", badge: unreadFBCount },
+    { key: "me",        label: "マイページ",     sub:"自分の活動", icon:"user" },
+  ];
+  const navSettings = [
+    { key: "sources",   label: "情報ソース管理", sub:"RSS / API",  icon:"database" },
+    { key: "guide",     label: "使い方ガイド",   sub:"はじめての方へ", icon:"bulb" },
+  ];
+  return (
+    <div className="min-h-screen flex">
+      {/* Sidebar */}
+      <aside className="w-64 shrink-0 border-r border-ink-200/80 bg-white hidden md:flex flex-col">
+        <div className="px-5 py-5 flex items-center gap-2.5 border-b border-ink-100">
+          <Icon name="logo" className="w-9 h-9" />
+          <div className="leading-tight">
+            <div className="font-extrabold tracking-tight text-[15px] text-ink-900">SPROUT</div>
+            <div className="text-[10px] text-ink-500 tracking-[0.12em] font-semibold mt-0.5">ASAHI R&amp;D IDEATION HUB</div>
+          </div>
+        </div>
+        <nav className="flex-1 p-3 space-y-0.5">
+          {nav.map(n => {
+            const active = route === n.key;
+            return (
+              <a key={n.key} href={`#/${n.key}`}
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg group transition ${
+                  active ? "bg-gradient-to-r from-asahi-50 to-cream-50 text-asahi-700" : "text-ink-700 hover:bg-cream-50"}`}>
+                {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-asahi-500"/>}
+                <Icon name={n.icon} className={`w-[18px] h-[18px] ${active ? "text-asahi-600" : "text-ink-400 group-hover:text-ink-700"}`} strokeWidth={active ? 2 : 1.75}/>
+                <div className="flex-1 leading-tight">
+                  <div className={`text-[13px] ${active ? "font-bold" : "font-semibold"}`}>{n.label}</div>
+                  <div className={`text-[10.5px] font-medium ${active ? "text-asahi-600/80" : "text-ink-400"}`}>{n.sub}</div>
+                </div>
+                {n.badge > 0 && (
+                  <span className={`text-[10.5px] font-bold px-1.5 h-5 min-w-5 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white ${n.badgeTone === "amber" ? "bg-amber-500 text-white" : "bg-asahi-500 text-white"}`}>
+                    {n.badge}
+                  </span>
+                )}
+              </a>
+            );
+          })}
+
+          <div className="pt-4 pb-1.5 px-3 text-[10px] tracking-[0.18em] font-bold text-ink-400">QUICK ACTION</div>
+          <button
+            onClick={() => navigate("#/ideas/new")}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-br from-ink-900 to-ink-800 text-white hover:from-asahi-600 hover:to-asahi-500 transition text-[13px] font-bold shadow-sm">
+            <Icon name="pencil" className="w-4 h-4"/> 新しいアイデアを書く
+          </button>
+          <div className="pt-1 px-3 text-[10.5px] text-ink-400 leading-snug">
+            気になる記事から開始すると、自動で背景情報が紐づきます。
+          </div>
+
+          <div className="pt-4 pb-1.5 px-3 text-[10px] tracking-[0.18em] font-bold text-ink-400">SETTINGS</div>
+          {navSettings.map(n => {
+            const active = route === n.key;
+            return (
+              <a key={n.key} href={`#/${n.key}`}
+                className={`relative flex items-center gap-3 px-3 py-2 rounded-lg group transition ${
+                  active ? "bg-gradient-to-r from-asahi-50 to-cream-50 text-asahi-700" : "text-ink-700 hover:bg-cream-50"}`}>
+                {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-asahi-500"/>}
+                <Icon name={n.icon} className={`w-[16px] h-[16px] ${active ? "text-asahi-600" : "text-ink-400 group-hover:text-ink-700"}`}/>
+                <div className="flex-1 leading-tight">
+                  <div className={`text-[12.5px] ${active ? "font-bold" : "font-semibold"}`}>{n.label}</div>
+                  <div className={`text-[10px] font-medium ${active ? "text-asahi-600/80" : "text-ink-400"}`}>{n.sub}</div>
+                </div>
+              </a>
+            );
+          })}
+        </nav>
+        <div className="p-3 border-t border-ink-100 bg-cream-50/50">
+          <DailyStreak />
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header />
+        <main className="flex-1 overflow-x-hidden">
+          <div className="mx-auto max-w-[1440px]">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function DailyStreak() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const myIdeasCount = allIdeas(data, app).filter(i => i.author === data.me.id && !i.isExample).length;
+  const streak = app.state.streak.count;
+  const active = streak > 0;
+  return (
+    <Card className="p-3 ring-1 ring-cream-200/80 bg-white">
+      <div className="flex items-center gap-2.5">
+        <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white shrink-0 ${active ? "bg-gradient-to-br from-amber-400 via-asahi-500 to-asahi-600 shadow-sm" : "bg-ink-200 text-ink-400"}`}>
+          <Icon name="flame" className="w-5 h-5" strokeWidth={2.2}/>
+        </div>
+        <div className="leading-tight flex-1 min-w-0">
+          <div className="text-[10.5px] text-ink-500 font-semibold tracking-wide">連続アウトプット</div>
+          <div className="flex items-baseline gap-1">
+            <div className="text-[18px] font-extrabold text-ink-900 tabular-nums">{streak}</div>
+            <div className="text-[11px] text-ink-500 font-semibold">日連続</div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2.5 grid grid-cols-14 gap-[3px]" style={{gridTemplateColumns:"repeat(14, minmax(0, 1fr))"}}>
+        {Array.from({length:14}).map((_, i) => {
+          const on = i >= 14 - streak;
+          return <div key={i} className={`h-2 rounded-sm transition ${on ? "bg-gradient-to-b from-asahi-400 to-asahi-500" : "bg-ink-100"}`} title={`${14-i}日前`}/>
+        })}
+      </div>
+      <div className="text-[10.5px] text-ink-500 mt-2 leading-relaxed">
+        {myIdeasCount > 0
+          ? <>今月のアイデア投稿 <b className="text-sprout-700">{myIdeasCount}</b> 本 🌱</>
+          : <>最初の1本を書いて、習慣をスタート 🌱</>}
+      </div>
+    </Card>
+  );
+}
+
+function Header() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const me = data.me;
+  const [q, setQ] = useState("");
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const unread = useMemo(() => buildNotifications(data, app), [app.state.readFeedback, app.state.readIdeas, app.state.extraFeedback, app.state.ideaStatusOverride]);
+  const unreadCount = unread.filter(n => !n.read).length;
+
+  return (
+    <header className="bg-white/80 backdrop-blur border-b border-ink-200 sticky top-0 z-30">
+      <div className="h-14 px-5 flex items-center gap-3">
+        <button onClick={()=>window.__openPalette?.()}
+          className="flex-1 max-w-xl relative h-9 pl-9 pr-3 text-[13px] rounded-lg border border-ink-200 hover:border-ink-400 outline-none bg-ink-50/60 flex items-center gap-2 text-ink-500 transition">
+          <Icon name="search" className="w-4 h-4 absolute left-3 text-ink-400" />
+          <span className="flex-1 text-left">シーズ・記事・アイデアを検索...</span>
+          <span className="flex items-center gap-1">
+            <kbd className="px-1.5 h-5 text-[10px] rounded bg-white border border-ink-200 font-mono text-ink-500">⌘</kbd>
+            <kbd className="px-1.5 h-5 text-[10px] rounded bg-white border border-ink-200 font-mono text-ink-500">K</kbd>
+          </span>
+        </button>
+        <div className="flex items-center gap-2">
+          {/* Settings menu */}
+          <div className="relative">
+            <button onClick={()=>setMenuOpen(v=>!v)} title="設定"
+              className="h-9 w-9 rounded-lg flex items-center justify-center text-ink-600 hover:bg-ink-100">
+              <Icon name="dots" className="w-[18px] h-[18px]"/>
+            </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={()=>setMenuOpen(false)}/>
+                <div className="absolute right-0 top-11 w-56 bg-white rounded-xl shadow-pop ring-1 ring-ink-200 p-1.5 z-40">
+                  <a href="#/sources" onClick={()=>setMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-ink-50 text-[12.5px] text-ink-700">
+                    <Icon name="database" className="w-4 h-4 text-ink-500"/> ソース管理
+                  </a>
+                  <button onClick={()=>{ app.resetOnboarding(); setMenuOpen(false); window.location.hash="#/dashboard"; }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-ink-50 text-[12.5px] text-ink-700">
+                    <Icon name="sparkles" className="w-4 h-4 text-ink-500"/> オンボーディングをやり直す
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Notifications bell */}
+          <div className="relative">
+            <button onClick={()=>setNotifOpen(v=>!v)} className="relative h-9 w-9 rounded-lg hover:bg-ink-100 flex items-center justify-center text-ink-700">
+              <Icon name="bell" className="w-[18px] h-[18px]"/>
+              {unreadCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-asahi-500 ring-2 ring-white text-white text-[9.5px] font-bold flex items-center justify-center">{unreadCount > 9 ? "9+" : unreadCount}</span>
+              )}
+            </button>
+            {notifOpen && <NotificationsMenu items={unread} onClose={()=>setNotifOpen(false)}/>}
+          </div>
+
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Notifications (unread events)
+// ---------------------------------------------------------------
+function buildNotifications(data, app) {
+  const me = data.me;
+  const all = [];
+  const myIdeaIds = new Set(allIdeas(data, app).filter(i => i.author === me.id).map(i => i.id));
+  allFeedback(data, app).forEach(f => {
+    if (!myIdeaIds.has(f.ideaId) || f.author === me.id) return;
+    if (app.state.readFeedback[f.id]) return;
+    all.push({
+      id: "n_fb_" + f.id,
+      kind: "feedback",
+      at: f.at,
+      text: `${data.usersById[f.author]?.name} がコメント — ${data.ideasById[f.ideaId]?.codename}`,
+      preview: f.text.slice(0, 80) + (f.text.length > 80 ? "…" : ""),
+      href: `#/ideas/${f.ideaId}`,
+      read: false,
+      actor: data.usersById[f.author],
+    });
+  });
+  all.sort((a,b) => (b.at||"").localeCompare(a.at||""));
+  return all.slice(0, 12);
+}
+
+function NotificationsMenu({ items, onClose }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onClose}/>
+      <div className="absolute right-0 top-11 w-96 bg-white rounded-xl shadow-pop ring-1 ring-ink-200 overflow-hidden z-40">
+        <div className="px-4 py-3 border-b border-ink-100 flex items-center justify-between">
+          <div className="font-extrabold text-[13px] text-ink-900">通知</div>
+          <span className="text-[11px] text-ink-500">{items.length} 件の未読</span>
+        </div>
+        <div className="max-h-96 overflow-auto">
+          {items.length === 0 && <div className="p-8 text-center text-[12px] text-ink-500">未読はありません ✨</div>}
+          {items.map(n => (
+            <a key={n.id} href={n.href} onClick={()=>{
+              if (n.kind === "feedback") app.markFeedbackRead(n.id.replace("n_fb_",""));
+              onClose();
+            }} className="flex items-start gap-3 px-4 py-3 border-b border-ink-100 hover:bg-ink-50 transition">
+              <Avatar user={n.actor} size={7}/>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12.5px] font-bold text-ink-900 truncate">{n.text}</span>
+                  {n.amount && <Badge tone="amber">¥{n.amount.toFixed(1)}億</Badge>}
+                </div>
+                <div className="text-[11.5px] text-ink-600 line-clamp-2 mt-0.5">{n.preview}</div>
+                <div className="text-[10.5px] text-ink-400 mt-1">{n.at}</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Helpers — derived data
+// ---------------------------------------------------------------
+function allIdeas(data, app) {
+  return [...app.state.extraIdeas, ...data.ideas];
+}
+function allFeedback(data, app) {
+  return [...data.feedback, ...app.state.extraFeedback];
+}
+function fmtDate(d) { return d; }
+function relTime(d) {
+  const today = new Date("2026-04-27");
+  const then  = new Date(d);
+  const days  = Math.floor((today - then) / (1000*60*60*24));
+  if (isNaN(days)) return d;
+  if (days <= 0) return "今日";
+  if (days === 1) return "昨日";
+  if (days < 7) return `${days}日前`;
+  if (days < 30) return `${Math.floor(days/7)}週間前`;
+  return `${Math.floor(days/30)}ヶ月前`;
+}
+
+// ---------------------------------------------------------------
+//  Page: Dashboard (萌芽探索RSS)
+// ---------------------------------------------------------------
+function Dashboard() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const live = useLive();
+  const { navigate } = useHashRoute();
+  const [cat, setCat] = useState("all");
+  const [sort, setSort] = useState("new");
+  const [seedFilter, setSeedFilter] = useState(null); // seedId
+  const [onlyLive, setOnlyLive] = useState(false);
+
+  // Combine live + mock (live first). Dedupe by id.
+  const baseArticles = useMemo(() => {
+    const mock = data.articles.map(a => ({ ...a, live: false }));
+    const merged = [...(live.articles || []), ...mock];
+    const seen = new Set();
+    return merged.filter(a => {
+      const k = a.id;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+  }, [data.articles, live.articles]);
+
+  // Personalized top-5 from user prefs (focusSeeds + focusDomains)
+  const prefs = app.state.prefs;
+  const yourFive = useMemo(() => {
+    const focusSeeds = new Set(prefs.focusSeeds || []);
+    const focusDomains = new Set(prefs.focusDomains || []);
+    const scored = baseArticles.map(a => {
+      const seedHits = (a.relatedSeeds || []).filter(s => focusSeeds.has(s)).length;
+      const domHits  = (a.tags || []).filter(d => focusDomains.has(d)).length;
+      const score = seedHits * 2 + domHits;  // seeds weigh more
+      return { a, score };
+    })
+    .filter(x => x.score > 0)
+    .sort((x,y) => y.score - x.score || (y.a.date||"").localeCompare(x.a.date||""));
+    return scored.slice(0, 5).map(x => x.a);
+  }, [baseArticles, prefs.focusSeeds, prefs.focusDomains]);
+
+  const articles = useMemo(() => {
+    let out = baseArticles.slice();
+    if (onlyLive) out = out.filter(a => a.live);
+    if (cat !== "all") out = out.filter(a => a.category === cat);
+    if (seedFilter) out = out.filter(a => (a.relatedSeeds || []).includes(seedFilter));
+    if (sort === "new")       out.sort((a,b) => (b.date||"").localeCompare(a.date||""));
+    if (sort === "important") out.sort((a,b) => (b.importance||0) - (a.importance||0));
+    if (sort === "trending")  out.sort((a,b) => (b.trending?1:0) - (a.trending?1:0));
+    return out.slice(0, 60); // cap UI
+  }, [baseArticles, cat, sort, seedFilter, onlyLive]);
+
+  const suggestions = data.aiSuggestions.filter(s => !app.state.dismissedSuggestions[s.id]);
+  const liveCount = (live.articles || []).length;
+
+  const today = new Date("2026-04-27");
+  const dateLabel = `${today.getMonth()+1}月${today.getDate()}日 (${["日","月","火","水","木","金","土"][today.getDay()]})`;
+
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      {/* Hero — 挨拶 + 今日のサマリー + アクション導線 */}
+      <div className="relative overflow-hidden rounded-2xl ring-1 ring-cream-200/70 bg-white">
+        <div className="gradient-hero-accent absolute inset-0 pointer-events-none"/>
+        <div className="relative px-6 lg:px-8 py-6 flex flex-wrap items-end gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-[11.5px] text-ink-500 font-semibold mb-1.5">
+              <span>{dateLabel}</span>
+              <span className="text-ink-300">·</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sprout-50 text-sprout-700 ring-1 ring-sprout-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-sprout-500"/>
+                萌芽探索モード
+              </span>
+            </div>
+            <h1 className="font-extrabold tracking-tight text-[22px] lg:text-[26px] text-ink-900 leading-tight">
+              今朝の<span className="text-asahi-600">萌芽</span>を、自社シーズで眺めよう。
+            </h1>
+            <p className="text-ink-600 mt-1.5 text-[13.5px] leading-relaxed">
+              世の中のニュースから、<b className="text-asahi-600">自社シーズと重なる兆し</b>を集めました。
+              気になる記事を <b className="text-ink-900">2クリックでアイデアに</b> 落とし込めます。
+            </p>
+          </div>
+          <div className="flex items-stretch gap-3">
+            <Kpi label="今朝の新着" value={live.loading ? "…" : baseArticles.length} hint="件" tone="asahi" icon="rss"/>
+            <Kpi label="あなた向け" value={yourFive.length} hint="本" tone="sprout" icon="stars"/>
+          </div>
+        </div>
+      </div>
+
+      {/* Status bar — 右端に再取得ボタン */}
+      <div className="flex flex-wrap items-center gap-3 px-1">
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold ring-1 ${
+          live.loading ? "bg-amber-50 text-amber-700 ring-amber-200" :
+          live.error   ? "bg-rose-50 text-rose-700 ring-rose-200" :
+                         "bg-sprout-50 text-sprout-700 ring-sprout-200"
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${live.loading ? "bg-amber-500 animate-pulse" : live.error ? "bg-rose-500" : "bg-sprout-500"}`}/>
+          {live.loading ? "ニュース取得中…" : live.error ? "取得に失敗しました" : "最新の状態"}
+        </div>
+        {live.fetchedAt && (
+          <span className="text-[11.5px] text-ink-500 inline-flex items-center gap-1">
+            <Icon name="clock" className="w-3.5 h-3.5"/> {live.fetchedAt.replace("T"," ").slice(11,16)} に更新
+          </span>
+        )}
+        <span className="ml-auto"/>
+        <button onClick={()=>live.refresh(true)} disabled={live.loading}
+          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-semibold text-ink-700 bg-white ring-1 ring-ink-200 hover:bg-cream-50 hover:ring-asahi-300 disabled:opacity-50 transition">
+          <span className={live.loading ? "inline-block animate-spin" : ""}>↻</span> 再取得
+        </button>
+        {live.error && <div className="basis-full text-[11px] text-rose-600 px-1">{live.error}</div>}
+      </div>
+
+      {/* Filters — softer pill design */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] tracking-widest font-bold text-ink-400 mr-1">VIEW</span>
+        {data.articleCategories.filter(c => c.key === "all" || ["生活者トレンド","市場統計","海外/先進企業事例"].includes(c.key)).map(c => (
+          <Tag key={c.key} active={cat === c.key} onClick={() => setCat(c.key)}>
+            <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1.5 ${c.color || "bg-slate-400"}`}/>
+            {c.label || c.key}
+          </Tag>
+        ))}
+        {seedFilter && (
+          <button onClick={() => setSeedFilter(null)}
+            className="ml-2 inline-flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-semibold bg-asahi-500 text-white shadow-sm">
+            🧪 {data.seedsById[seedFilter].code} を解除 <Icon name="x" className="w-3.5 h-3.5 ml-1"/>
+          </button>
+        )}
+      </div>
+
+      {/* Grid: Feed + Side rails */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Left: feed */}
+        <div className="xl:col-span-8 space-y-4">
+          {/* Your 5 — personalized */}
+          {yourFive.length > 0 && (
+            <Card className="overflow-hidden ring-1 ring-asahi-200/70 shadow-card">
+              <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-asahi-50 via-cream-50 to-sprout-50/40 border-b border-asahi-100/60">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-asahi-500 to-asahi-600 flex items-center justify-center text-white shadow-sm">
+                    <Icon name="stars" className="w-4 h-4" strokeWidth={2.2}/>
+                  </div>
+                  <div className="font-extrabold text-[14.5px] text-ink-900">あなた向け · 今朝の5本</div>
+                  <Badge tone="red">あなた専用</Badge>
+                  <span className="ml-auto text-[11px] text-ink-500 hidden lg:inline-flex items-center gap-1">
+                    <Icon name="filter" className="w-3 h-3"/>
+                    {(prefs.focusDomains||[]).slice(0,2).join(" · ")}
+                    {prefs.focusSeeds?.length > 0 && " · " + (prefs.focusSeeds||[]).slice(0,2).map(sid => data.seedsById[sid]?.code).join(" / ")}
+                  </span>
+                </div>
+                <div className="text-[11.5px] text-ink-600 mt-1.5 ml-9">
+                  あなたの関心領域・担当シーズと <b className="text-ink-900">最も重なる記事</b> を上から並べています。
+                </div>
+              </div>
+              <div className="p-2 space-y-0.5 bg-white">
+                {yourFive.map((a, i) => (
+                  <a key={a.id} href={a.url || "#"} target={a.url ? "_blank" : undefined} rel="noopener noreferrer"
+                    className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-cream-50 transition group">
+                    <span className="font-mono font-extrabold text-asahi-600 text-[12px] w-7 shrink-0 mt-0.5">0{i+1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        {a.live && <Badge tone="green">LIVE</Badge>}
+                        <span className="text-[10.5px] font-semibold text-ink-500">{a.source}</span>
+                        <span className="text-[10.5px] text-ink-300">·</span>
+                        <span className="text-[10.5px] text-ink-500">{relTime(a.date)}</span>
+                        {(a.relatedSeeds||[]).slice(0,2).map(sid => <Badge key={sid} tone="red">🧪 {data.seedsById[sid]?.code}</Badge>)}
+                      </div>
+                      <div className="font-bold text-[13px] text-ink-900 line-clamp-2 leading-snug group-hover:text-asahi-700 transition">{a.title}</div>
+                    </div>
+                    {a.url && <Icon name="arrow-up-right" className="w-4 h-4 text-ink-400 mt-1 group-hover:text-asahi-500 transition"/>}
+                  </a>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {articles.map(a => (
+            <ArticleRow key={a.id} article={a} onPickSeed={(sid) => setSeedFilter(sid)} />
+          ))}
+          {articles.length === 0 && (
+            <Card className="p-8 lg:p-10 text-center bg-white">
+              <div className="mx-auto h-14 w-14 rounded-full bg-cream-100 flex items-center justify-center mb-3">
+                <Icon name="rss" className="w-6 h-6 text-ink-400"/>
+              </div>
+              <div className="font-extrabold text-[15px] text-ink-900 mb-1.5">
+                {live.loading ? "ニュースを取得しています…" : live.error ? "ニュースの取得に失敗しました" : "条件に合う記事がまだありません"}
+              </div>
+              <div className="text-[12.5px] text-ink-500 leading-relaxed max-w-md mx-auto">
+                {live.loading
+                  ? "数秒お待ちください。RSSとニュースAPIから最新情報を集めています。"
+                  : live.error
+                    ? "ネットワーク接続を確認してから「再取得」を押してください。サンプル記事と AI 提案は右側でご覧いただけます。"
+                    : <>カテゴリやシーズ絞り込みを変えるか、<button onClick={()=>{setCat("all");setSeedFilter(null);}} className="text-asahi-600 font-bold underline">フィルタをリセット</button> してみてください。</>}
+              </div>
+              {!live.loading && (
+                <button onClick={()=>live.refresh(true)} className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-lg text-[12.5px] font-semibold text-white bg-asahi-500 hover:bg-asahi-600 transition shadow-sm">
+                  ↻ 最新ニュースを取得
+                </button>
+              )}
+            </Card>
+          )}
+        </div>
+
+        {/* Right: rails */}
+        <div className="xl:col-span-4 space-y-5">
+          {/* AI suggestions */}
+          <Card className="overflow-hidden">
+            <div className="p-4 pb-3 bg-gradient-to-br from-violet-50 via-white to-asahi-50/30 border-b border-ink-100/70">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500 to-asahi-500 flex items-center justify-center text-white shadow-sm">
+                  <Icon name="sparkles" className="w-[18px] h-[18px]" strokeWidth={2.2}/>
+                </div>
+                <div className="leading-tight flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="text-[13.5px] font-extrabold text-ink-900">AI からの提案</div>
+                    <Badge tone="violet">AI</Badge>
+                  </div>
+                  <div className="text-[11px] text-ink-500 mt-0.5">自社シーズ × 世の中の動きを掛け合わせ</div>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 space-y-2">
+              {suggestions.slice(0,3).map(s => (
+                <a key={s.id} href={`#/ideas/new?suggestion=${s.id}`}
+                  className="block p-3 rounded-xl ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 hover:shadow-card transition group">
+                  <div className="text-[13px] font-bold text-ink-900 leading-snug line-clamp-2 group-hover:text-asahi-700 transition">{s.title}</div>
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {s.fromSeeds.map(id => data.seedsById[id] && <Badge key={id} tone="red">🧪 {data.seedsById[id].code}</Badge>)}
+                    {s.isExample && <Badge tone="slate">例</Badge>}
+                  </div>
+                  <div className="text-[11.5px] text-ink-500 mt-1.5 leading-relaxed line-clamp-2">{s.rationale}</div>
+                  <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-asahi-600 opacity-0 group-hover:opacity-100 transition">
+                    アイデアを書き始める <Icon name="arrow-right" className="w-3.5 h-3.5"/>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </Card>
+
+          {/* Trending seeds */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Icon name="beaker" className="w-4 h-4 text-asahi-600"/>
+                <div className="text-[13.5px] font-extrabold text-ink-900">注目の自社シーズ</div>
+              </div>
+              <a href="#/seeds" className="text-[11px] font-semibold text-ink-500 hover:text-asahi-600 inline-flex items-center gap-0.5 transition">すべて <Icon name="arrow-right" className="w-3.5 h-3.5"/></a>
+            </div>
+            <div className="space-y-1">
+              {data.seeds.slice(0,4).map(s => (
+                <button key={s.id} onClick={() => setSeedFilter(s.id)} className="w-full text-left p-2.5 rounded-lg hover:bg-cream-50 transition flex items-start gap-3 group">
+                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-asahi-50 to-cream-100 ring-1 ring-asahi-200 text-asahi-700 flex items-center justify-center text-[11px] font-extrabold shrink-0 group-hover:from-asahi-100 group-hover:to-asahi-50 transition">
+                    {s.code.split("-")[0]}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[12.5px] font-bold text-ink-900 truncate">{s.name}</div>
+                      <span className="text-[10px] font-bold text-ink-500 tabular-nums">{s.readiness}%</span>
+                    </div>
+                    <div className="text-[10.5px] text-ink-500 truncate">{s.summary}</div>
+                    <div className="mt-1.5 h-1.5 bg-ink-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${s.readiness >= 75 ? "bg-sprout-500" : s.readiness >= 60 ? "bg-asahi-500" : "bg-amber-500"}`} style={{width:`${s.readiness}%`}}/>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-ink-100 text-[10.5px] text-ink-500 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sprout-500"/>実用化目前</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-asahi-500"/>検証中</span>
+              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"/>初期段階</span>
+            </div>
+          </Card>
+
+          {/* Daily digest */}
+          <Card className="overflow-hidden">
+            <div className="p-4 pb-3 border-b border-ink-100/70 bg-gradient-to-br from-amber-50/60 via-white to-cream-50">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-asahi-500 flex items-center justify-center text-white shadow-sm">
+                  <Icon name="sparkles" className="w-[18px] h-[18px]" strokeWidth={2.2}/>
+                </div>
+                <div className="leading-tight">
+                  <div className="text-[13.5px] font-extrabold text-ink-900">今朝の3行サマリー</div>
+                  <div className="text-[11px] text-ink-500 mt-0.5">AIが昨晩のニュースを要約しました</div>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 text-[12.5px] text-ink-700 leading-relaxed space-y-3">
+              <div>
+                <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-0.5">📈 マクロ動向</div>
+                <p>GLP-1普及と Sober Curious が重なり、<b className="text-ink-900">『飲む量の構造変化』</b>が加速。<b className="text-ink-900">少量・高満足・機能性</b> がグローバル共通の萌芽です。</p>
+              </div>
+              <div>
+                <div className="text-[10.5px] tracking-widest font-bold text-sprout-700 mb-0.5">🌱 自社の追い風</div>
+                <p><b className="text-asahi-600">REAL-ZERO</b> と <b className="text-asahi-600">Hop-β</b> の組み合わせが好機。プレミアム・ノンアル<a href="#/ideas/i_soberwellness" className="text-asahi-600 font-bold hover:underline">『Sober Wellness』</a>の仕込みが有望。</p>
+              </div>
+              <div>
+                <div className="text-[10.5px] tracking-widest font-bold text-asahi-600 mb-0.5">⚠️ 要注意</div>
+                <p>FlavorGPT 登場で<b className="text-ink-900">香味設計AIのコモディティ化</b>が早まる見込み。守りに回るより、自社FLAVOR-AIを<a href="#/ideas/i_flavorforge" className="text-asahi-600 font-bold hover:underline">外販で攻める</a>戦略を。</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Kpi({ label, value, hint, tone = "asahi", icon }) {
+  const toneMap = {
+    asahi:  { bg: "bg-asahi-50",  ring: "ring-asahi-100",  text: "text-asahi-700",  iconBg: "bg-asahi-500" },
+    sprout: { bg: "bg-sprout-50", ring: "ring-sprout-100", text: "text-sprout-700", iconBg: "bg-sprout-500" },
+    ink:    { bg: "bg-ink-50",    ring: "ring-ink-100",    text: "text-ink-700",    iconBg: "bg-ink-700" },
+  };
+  const t = toneMap[tone] || toneMap.asahi;
+  return (
+    <div className={`relative pl-3.5 pr-4 py-2.5 rounded-xl ${t.bg} ring-1 ${t.ring} min-w-[112px]`}>
+      <div className="flex items-center gap-2 mb-0.5">
+        {icon && (
+          <div className={`h-5 w-5 rounded ${t.iconBg} text-white flex items-center justify-center`}>
+            <Icon name={icon} className="w-3 h-3" strokeWidth={2.2}/>
+          </div>
+        )}
+        <div className={`text-[10.5px] tracking-wider font-bold ${t.text} uppercase`}>{label}</div>
+      </div>
+      <div className="flex items-end gap-1">
+        <div className="text-[26px] leading-none font-extrabold text-ink-900">{value}</div>
+        <div className="text-[11px] text-ink-500 mb-1">{hint}</div>
+      </div>
+    </div>
+  );
+}
+
+function ArticleRow({ article, onPickSeed }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const { navigate } = useHashRoute();
+  const liked = !!app.state.likedArticles[article.id];
+  const saved = !!app.state.savedArticles[article.id];
+
+  const catTone = { "市場統計":"blue", "生活者トレンド":"red", "海外/先進企業事例":"green", "事業アイデア例":"amber" }[article.category] || "slate";
+
+  return (
+    <Card className="p-5 hover:shadow-pop transition group">
+      <div className="flex items-start gap-4">
+        <div className="flex flex-col items-center gap-1 pt-0.5">
+          <button onClick={() => app.toggleArticleLike(article.id)} title="いいね"
+            className={`h-9 w-9 rounded-lg flex items-center justify-center transition ${liked ? "bg-asahi-50 text-asahi-600" : "text-ink-400 hover:bg-ink-50 hover:text-ink-900"}`}>
+            <Icon name={liked ? "heart-fill":"heart"} className="w-[18px] h-[18px]"/>
+          </button>
+          <button onClick={() => app.toggleArticleSave(article.id)} title="保存"
+            className={`h-9 w-9 rounded-lg flex items-center justify-center transition ${saved ? "bg-amber-50 text-amber-600" : "text-ink-400 hover:bg-ink-50 hover:text-ink-900"}`}>
+            <Icon name={saved ? "bookmark-fill":"bookmark"} className="w-[18px] h-[18px]"/>
+          </button>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center flex-wrap gap-2 text-[11px] text-ink-500">
+            <Badge tone={catTone}>{article.category}</Badge>
+            {article.trending && <Badge tone="red"><Icon name="fire" className="w-3 h-3"/> 注目</Badge>}
+            {article.summaryMode === "llm" && <Badge tone="violet">✨ AI要約</Badge>}
+            <span className="font-semibold text-ink-700">{article.source}</span>
+            <span className="text-ink-300">·</span>
+            <span>{article.lang}</span>
+            <span className="ml-auto text-ink-400 flex items-center gap-1"><Icon name="clock" className="w-3.5 h-3.5"/> {relTime(article.date)}</span>
+          </div>
+          <h3 className="mt-1.5 font-extrabold text-[16.5px] leading-snug text-ink-900 group-hover:text-asahi-700 transition">
+            {article.url
+              ? <a href={article.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{article.title}</a>
+              : article.title}
+          </h3>
+
+          <ul className="mt-2 space-y-1 text-[12.5px] text-ink-700 leading-relaxed">
+            {article.summary.map((s,i) => (
+              <li key={i} className="flex gap-2"><span className="mt-1.5 block h-1 w-1 rounded-full bg-asahi-500 shrink-0"/><span>{s}</span></li>
+            ))}
+          </ul>
+
+          {article.tags && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {article.tags.map(t => <span key={t} className="text-[10.5px] font-semibold text-ink-500 bg-ink-100 px-2 py-0.5 rounded-full">#{t}</span>)}
+            </div>
+          )}
+
+          {/* Seed match */}
+          {article.relatedSeeds && article.relatedSeeds.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-dashed border-ink-200">
+              <div className="text-[10.5px] tracking-wider font-bold text-ink-400 uppercase flex items-center gap-1 mb-1.5">
+                <Icon name="beaker" className="w-3.5 h-3.5"/> 自社シーズとの関連
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {article.relatedSeeds.map(sid => {
+                  const s = data.seedsById[sid];
+                  const matchScore = 72 + ((sid.length * 7) % 22);
+                  return (
+                    <button key={sid} onClick={() => onPickSeed(sid)} className="inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full bg-asahi-50 text-asahi-700 ring-1 ring-asahi-200 hover:bg-asahi-100 transition">
+                      <span className="text-[11px] font-extrabold">{s.code}</span>
+                      <span className="text-[11px] font-semibold">{s.name}</span>
+                      <span className="text-[10px] text-asahi-500">·{matchScore}%</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[11px] text-ink-500">
+              {article.live
+                ? (article.url && <a href={article.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-ink-600 hover:text-asahi-600 truncate max-w-[320px]"><Icon name="link" className="w-3.5 h-3.5"/>{(new URL(article.url)).hostname.replace(/^www\./,"")}</a>)
+                : (<><span className="inline-flex items-center gap-1"><Icon name="message" className="w-3.5 h-3.5"/> 12 件のコメント</span><span>·</span><span className="inline-flex items-center gap-1"><Icon name="eye" className="w-3.5 h-3.5"/> 社内 38 名が保存</span></>)}
+            </div>
+            <div className="flex items-center gap-2">
+              {article.url && <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={()=>window.open(article.url,"_blank","noopener")}>原文を読む</Button>}
+              <Button size="sm" variant="dark" icon="bulb" onClick={() => {
+                const url = `#/ideas/new?article=${article.id}`;
+                window.location.hash = url;
+              }}>アイデアに変える</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: Seeds library
+// ---------------------------------------------------------------
+function SeedsPage() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const [cat, setCat] = useState("all");
+  const cats = ["all", ...Array.from(new Set(data.seeds.map(s => s.category)))];
+  const seeds = cat === "all" ? data.seeds : data.seeds.filter(s => s.category === cat);
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <div className="text-[11.5px] tracking-widest font-bold text-asahi-600 mb-1">SEEDS LIBRARY</div>
+          <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">自社シーズ / 技術資産</h1>
+          <p className="text-ink-600 text-[13.5px] mt-1">研究開発が積み上げてきた「他社に真似しにくい資産」。<b>アイデアは必ずこのどれかに接続されます。</b></p>
+        </div>
+        <div className="flex gap-4">
+          <Kpi label="登録シーズ" value={data.seeds.length} hint="件"/>
+          <Kpi label="平均成熟度" value={Math.round(data.seeds.reduce((a,b)=>a+b.readiness,0)/data.seeds.length)} hint="%"/>
+          <Kpi label="カテゴリ" value={cats.length-1} hint=""/>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {cats.map(c => <Tag key={c} active={cat===c} onClick={() => setCat(c)}>{c === "all" ? "すべて" : c}</Tag>)}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4">
+        {seeds.map(s => <SeedCard key={s.id} seed={s} />)}
+      </div>
+    </div>
+  );
+}
+
+function SeedCard({ seed }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const ideasLinked = allIdeas(data, app).filter(i => (i.linkedSeeds||[]).includes(seed.id));
+  const articlesLinked = data.articles.filter(a => (a.relatedSeeds||[]).includes(seed.id));
+  const owner = data.usersById[seed.owner];
+  return (
+    <Card className="p-5 hover:shadow-pop transition">
+      <div className="flex items-start gap-3">
+        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-asahi-500 to-asahi-700 text-white flex items-center justify-center font-extrabold text-[12px] shadow-sm tracking-tight">
+          {seed.code}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge tone="slate">{seed.category}</Badge>
+            <Badge tone="green">{seed.maturity}</Badge>
+          </div>
+          <h3 className="mt-1.5 font-extrabold text-[15.5px] leading-snug text-ink-900">{seed.name}</h3>
+          <p className="text-[12.5px] text-ink-600 mt-1 line-clamp-3 leading-relaxed">{seed.summary}</p>
+        </div>
+      </div>
+      <div className="mt-3 text-[11px] text-ink-500">成熟度 (商用化準備)</div>
+      <div className="h-1.5 rounded bg-ink-100 mt-1">
+        <div className="h-1.5 rounded bg-gradient-to-r from-asahi-400 to-asahi-600" style={{width:`${seed.readiness}%`}}/>
+      </div>
+      <div className="mt-1 flex justify-between text-[10.5px] text-ink-400">
+        <span>TRL 1</span><span className="text-ink-700 font-bold">{seed.readiness}%</span><span>商用</span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1">
+        {seed.tags.map(t => <span key={t} className="text-[10.5px] font-semibold text-ink-500 bg-ink-100 px-2 py-0.5 rounded-full">#{t}</span>)}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-ink-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Avatar user={owner} size={6}/>
+          <div className="text-[11px] leading-tight">
+            <div className="font-bold text-ink-800">{owner.name}</div>
+            <div className="text-ink-500">{owner.role}</div>
+          </div>
+        </div>
+        <div className="flex gap-2 text-[11px] text-ink-500">
+          <span className="inline-flex items-center gap-1"><Icon name="bulb" className="w-3.5 h-3.5"/>{ideasLinked.length} アイデア</span>
+          <span>·</span>
+          <span className="inline-flex items-center gap-1"><Icon name="rss" className="w-3.5 h-3.5"/>{articlesLinked.length} 記事</span>
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button size="sm" variant="outline" icon="eye">詳細</Button>
+        <Button size="sm" variant="dark" icon="bulb" onClick={()=>{ window.location.hash = `#/ideas/new?seed=${seed.id}`; }}>このシーズでアイデアを書く</Button>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: Ideas Gallery
+// ---------------------------------------------------------------
+function IdeasPage() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const [status, setStatus] = useState("all");
+  const [sort, setSort] = useState("new");
+  const [scope, setScope] = useState("all");
+
+  const all = allIdeas(data, app);
+  let ideas = all.slice();
+  if (status !== "all") ideas = ideas.filter(i => i.status === status);
+  if (scope === "mine") ideas = ideas.filter(i => i.author === data.me.id);
+  if (scope === "liked") ideas = ideas.filter(i => (app.state.ideaLikedBy[i.id] || []).includes(data.me.id));
+  ideas.sort((a,b) => {
+    if (sort === "likes") return (app.state.ideaLikes[b.id]||0) - (app.state.ideaLikes[a.id]||0);
+    if (sort === "activity") return b.updatedAt.localeCompare(a.updatedAt);
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+
+  const statuses = ["all", "ドラフト", "提出済", "役員レビュー中", "採択"];
+
+  const realCount = all.filter(i => !i.isExample).length;
+  const exampleCount = all.filter(i => i.isExample).length;
+
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <div className="text-[11.5px] tracking-widest font-bold text-asahi-600 mb-1">IDEA GALLERY</div>
+          <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">新規事業アイデア</h1>
+          <p className="text-ink-600 text-[13.5px] mt-1">全員のアイデアを並べて、いいね / コメント / 参考にする。<b>出した数が価値です。</b></p>
+        </div>
+        <Button size="lg" icon="plus" onClick={() => window.location.hash = "#/ideas/new"}>アイデアを書く</Button>
+      </div>
+
+      {/* 0-start welcome banner */}
+      {realCount === 0 && (
+        <Card className="p-4 bg-gradient-to-br from-asahi-50/60 to-amber-50/60 border-2 border-asahi-200 flex items-center gap-3 flex-wrap">
+          <div className="h-9 w-9 rounded-xl bg-asahi-500 text-white flex items-center justify-center shrink-0">
+            <Icon name="sparkles" className="w-4 h-4"/>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-extrabold text-[14px] text-ink-900">最初のアイデアを書いてみましょう</div>
+            <p className="text-[12px] text-ink-600 mt-0.5">下の <b>{exampleCount} 件はサンプル例</b>（紫枠）— 採択／レビュー中の典型を見せています。</p>
+          </div>
+          <Button size="sm" icon="plus" onClick={() => window.location.hash = "#/ideas/new"}>新規作成</Button>
+          <Button size="sm" variant="outline" icon="rss" onClick={() => window.location.hash = "#/dashboard"}>萌芽を見る</Button>
+        </Card>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {statuses.map(s => <Tag key={s} active={status===s} onClick={() => setStatus(s)}>{s==="all"?"すべて":s}</Tag>)}
+        <div className="mx-1 h-5 w-px bg-ink-200"/>
+        <Tag active={scope==="all"} onClick={()=>setScope("all")}>全員</Tag>
+        <Tag active={scope==="mine"} onClick={()=>setScope("mine")}>自分</Tag>
+        <Tag active={scope==="liked"} onClick={()=>setScope("liked")}>♥ いいねした</Tag>
+        <div className="mx-1 h-5 w-px bg-ink-200"/>
+        <Tag active={sort==="new"}      onClick={()=>setSort("new")}>新着</Tag>
+        <Tag active={sort==="likes"}    onClick={()=>setSort("likes")}>いいね</Tag>
+        <Tag active={sort==="activity"} onClick={()=>setSort("activity")}>アクティビティ</Tag>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
+        {ideas.map(i => <IdeaCard key={i.id} idea={i}/>)}
+        {ideas.length === 0 && <Card className="col-span-full p-10 text-center text-ink-500">該当するアイデアはありません。</Card>}
+      </div>
+    </div>
+  );
+}
+
+function IdeaCard({ idea }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const author = data.usersById[idea.author];
+  const likes = app.state.ideaLikes[idea.id] ?? idea.likes;
+  const liked = (app.state.ideaLikedBy[idea.id] || []).includes(data.me.id);
+  const status = data.statusMeta[idea.status];
+  const fbCount = allFeedback(data, app).filter(f => f.ideaId === idea.id).length;
+  return (
+    <Card className={`p-5 hover:shadow-pop transition group relative overflow-hidden ${idea.isExample ? "ring-2 ring-dashed ring-violet-300 bg-violet-50/20" : ""}`}>
+      <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-gradient-to-br from-asahi-100 to-amber-100 opacity-60 group-hover:scale-110 transition"/>
+      <div className="relative">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex gap-1.5 flex-wrap">
+            <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${status?.color || "bg-ink-100 text-ink-700 border-ink-200"}`}>{idea.status}</span>
+            {idea.isExample && <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-violet-100 text-violet-800 ring-1 ring-violet-300">例 EXAMPLE</span>}
+          </div>
+          <span className="text-[10.5px] text-ink-400">{relTime(idea.updatedAt)}更新</span>
+        </div>
+        <div className="mt-2 text-[10.5px] font-bold tracking-widest text-asahi-600">#{idea.codename.toUpperCase()}</div>
+        <h3 className="font-extrabold text-[16.5px] leading-tight text-ink-900 line-clamp-2 mt-1 group-hover:text-asahi-700 transition">
+          <a href={`#/ideas/${idea.id}`}>{idea.title}</a>
+        </h3>
+        <p className="text-[12.5px] text-ink-600 mt-2 line-clamp-3 leading-relaxed">{idea.format.problem}</p>
+
+        {/* Seeds / articles */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {(idea.linkedSeeds||[]).slice(0,3).map(sid => <Badge key={sid} tone="red">🧪 {data.seedsById[sid]?.code}</Badge>)}
+          {(idea.linkedArticles||[]).slice(0,2).map(aid => <Badge key={aid} tone="blue">📄 {data.articlesById[aid]?.source}</Badge>)}
+        </div>
+
+        {/* Scores */}
+        {idea.scores && (
+          <div className="mt-3 grid grid-cols-4 gap-1 text-center">
+            {[["市場性","market"],["実現性","feasibility"],["シーズ","seedFit"],["新規性","novelty"]].map(([label,key]) => (
+              <div key={key} className="py-1.5 rounded bg-ink-50">
+                <div className="text-[9.5px] text-ink-500 font-semibold tracking-wider">{label}</div>
+                <div className="text-[13px] font-extrabold text-ink-900">{(idea.scores[key]||0).toFixed(1)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 pt-3 border-t border-ink-100 flex items-center gap-2">
+          <Avatar user={author} size={7}/>
+          <div className="text-[11px] leading-tight min-w-0 flex-1">
+            <div className="font-bold text-ink-800 truncate">{author.name}</div>
+            <div className="text-ink-500 truncate">{author.role}</div>
+          </div>
+          <div className="flex items-center gap-3 text-[11.5px] text-ink-600">
+            <button onClick={(e) => { e.preventDefault(); app.toggleIdeaLike(idea.id, data.me.id); }}
+              className={`inline-flex items-center gap-1 px-2 h-7 rounded-full border ${liked ? "bg-asahi-50 text-asahi-700 border-asahi-200" : "border-ink-200 hover:bg-ink-50"}`}>
+              <Icon name={liked?"heart-fill":"heart"} className="w-3.5 h-3.5"/> {likes}
+            </button>
+            <span className="inline-flex items-center gap-1 text-ink-500"><Icon name="message" className="w-3.5 h-3.5"/>{fbCount}</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: Idea Detail
+// ---------------------------------------------------------------
+function IdeaDetailPage({ id }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const idea = allIdeas(data, app).find(i => i.id === id);
+
+  // Mark as read when opened
+  useEffect(() => {
+    if (idea) app.markIdeaRead(idea.id);
+  }, [id]);
+
+  if (!idea) return <div className="p-10 text-ink-500">アイデアが見つかりません。<a href="#/ideas" className="text-asahi-600 font-bold ml-2">一覧に戻る</a></div>;
+  const author = data.usersById[idea.author];
+  const likes = app.state.ideaLikes[idea.id] ?? idea.likes;
+  const liked = (app.state.ideaLikedBy[idea.id] || []).includes(data.me.id);
+  const currentStatus = effectiveStatus(idea, app.state);
+  const status = data.statusMeta[currentStatus];
+  const threads = allFeedback(data, app).filter(f => f.ideaId === idea.id);
+  const budget = app.state.budgets?.[idea.id];
+  const portfolio = app.state.portfolio?.[idea.id];
+
+  const likedByUsers = (app.state.ideaLikedBy[idea.id] || []).map(uid => data.usersById[uid]).filter(Boolean);
+
+  return (
+    <div className="p-6 lg:p-8 grid grid-cols-1 xl:grid-cols-12 gap-6">
+      {/* Main column */}
+      <div className="xl:col-span-8 space-y-6">
+        <a href="#/ideas" className="text-[12px] text-ink-500 hover:text-ink-900 inline-flex items-center gap-1"><Icon name="chevron-right" className="w-3.5 h-3.5 rotate-180"/>アイデア一覧</a>
+
+        {idea.isExample && (
+          <div className="rounded-xl bg-violet-50 ring-2 ring-dashed ring-violet-300 p-3 flex items-center gap-2 text-[12px] text-violet-900">
+            <Icon name="eye" className="w-4 h-4"/>
+            <b>これはサンプル例です。</b>
+            <span>「{currentStatus === "採択" ? "採択後トラッキング" : "役員レビューワークフロー"}」がどう見えるかの見本として入っています。削除しても構いません。</span>
+          </div>
+        )}
+        <Card className="p-6 lg:p-8">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${status?.color || "bg-ink-100 text-ink-700 border-ink-200"}`}>{currentStatus}</span>
+            <Badge tone="slate">#{idea.codename}</Badge>
+            {budget && <Badge tone="amber">依頼 ¥{budget.toFixed(1)}億</Badge>}
+            {idea.isExample && <Badge tone="violet">例 EXAMPLE</Badge>}
+            <span className="text-[11.5px] text-ink-500 ml-auto">作成 {idea.createdAt} · 更新 {idea.updatedAt}</span>
+          </div>
+          <h1 className="mt-3 font-extrabold tracking-tight text-ink-900 text-2xl lg:text-[30px] leading-tight">{idea.title}</h1>
+          <div className="mt-3 flex items-center gap-3">
+            <Avatar user={author}/>
+            <div className="text-[12px] leading-tight">
+              <div className="font-bold text-ink-800">{author.name}</div>
+              <div className="text-ink-500">{author.role} · {author.dept}</div>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={() => app.toggleIdeaLike(idea.id, data.me.id)}
+                className={`inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-[12.5px] font-bold border ${liked ? "bg-asahi-50 text-asahi-700 border-asahi-200" : "border-ink-200 hover:bg-ink-50"}`}>
+                <Icon name={liked?"heart-fill":"heart"} className="w-4 h-4"/> {likes}
+              </button>
+              <Button variant="outline" icon="pencil">編集</Button>
+            </div>
+          </div>
+        </Card>
+
+        {/* Version history */}
+        <HistoryPanel idea={idea} />
+
+        {/* Decision Panel — visible to execs only (or demo exec mode) */}
+        <DecisionPanel idea={idea} />
+
+        {/* Portfolio tracking — only for 採択 with tracking data */}
+        {currentStatus === "採択" && portfolio && <PortfolioPanel idea={idea} portfolio={portfolio}/>}
+
+        {/* Body in Asahi format */}
+        <Card className="p-6 lg:p-8">
+          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600 mb-1">ASAHI 新規事業フォーマット</div>
+          <div className="idea-body text-[13.5px] text-ink-800">
+            <Section num="01" title="解くべき課題">{idea.format.problem}</Section>
+            <Section num="02" title="顧客">{idea.format.customer}</Section>
+            <Section num="03" title="解決策">{idea.format.solution}</Section>
+            <Section num="04" title="競合にない強み">{idea.format.unfairAdvantage}</Section>
+            <Section num="05" title="市場規模">{idea.format.marketSize}</Section>
+            <Section num="06" title="顧客獲得の道筋">{idea.format.goToMarket}</Section>
+            <Section num="07" title="ビジネスモデル">{idea.format.businessModel}</Section>
+            <Section num="08" title="競合">{idea.format.competitors}</Section>
+            <Section num="09" title="ロードマップ">
+              <ul>{idea.format.roadmap.map((r,i)=> <li key={i}><b className="text-ink-900">{r.period}</b> — {r.milestone}</li>)}</ul>
+            </Section>
+            <Section num="10" title="リスク"><ul>{idea.format.risks.map((r,i)=> <li key={i}>{r}</li>)}</ul></Section>
+            <Section num="11" title="依頼事項">{idea.format.ask}</Section>
+          </div>
+        </Card>
+
+        {/* Feedback */}
+        <Card className="p-6 lg:p-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Icon name="message" className="w-[18px] h-[18px] text-ink-700"/>
+            <h3 className="font-extrabold text-ink-900 text-[16px]">フィードバック <span className="text-ink-400">({threads.length})</span></h3>
+            <div className="ml-auto flex items-center gap-2">
+              <Badge tone="violet">役員 {threads.filter(f=>f.role==="exec").length}</Badge>
+              <Badge tone="blue">投資家 {threads.filter(f=>f.role==="investor").length}</Badge>
+              <Badge tone="amber">アドバイザー {threads.filter(f=>f.role==="advisor").length}</Badge>
+              <Badge tone="slate">仲間 {threads.filter(f=>f.role==="peer" || f.role==="author").length}</Badge>
+            </div>
+          </div>
+          <FeedbackThread ideaId={idea.id} threads={threads}/>
+        </Card>
+      </div>
+
+      {/* Side column — 2 cards instead of 4 */}
+      <div className="xl:col-span-4 space-y-5">
+        {/* スコア + リアクション */}
+        <Card className="p-5">
+          <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">評価スコア</div>
+          <div className="space-y-2.5">
+            {idea.scores && Object.entries({market:"市場性", feasibility:"実現性", seedFit:"シーズ活用", novelty:"新規性"}).map(([k,lbl]) => {
+              const v = idea.scores[k] || 0;
+              return (
+                <div key={k}>
+                  <div className="flex justify-between text-[11.5px] text-ink-700"><span>{lbl}</span><span className="font-bold">{v.toFixed(1)}</span></div>
+                  <div className="h-1.5 rounded bg-ink-100 mt-1"><div className="h-1.5 rounded bg-gradient-to-r from-asahi-400 to-asahi-600" style={{width:`${(v/5)*100}%`}}/></div>
+                </div>
+              );
+            })}
+          </div>
+          {likedByUsers.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-ink-100">
+              <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">いいね</div>
+              <div className="flex flex-wrap gap-1">
+                {likedByUsers.map(u => <div key={u.id} title={u.name}><Avatar user={u} size={7}/></div>)}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* 参照: シーズ + 記事 */}
+        {((idea.linkedSeeds||[]).length > 0 || (idea.linkedArticles||[]).length > 0) && (
+          <Card className="p-5">
+            <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">参照</div>
+            <div className="space-y-1.5">
+              {(idea.linkedSeeds||[]).map(sid => {
+                const s = data.seedsById[sid];
+                if (!s) return null;
+                return (
+                  <a key={sid} href="#/seeds" className="flex items-center gap-2 p-2 rounded-lg hover:bg-ink-50 transition">
+                    <div className="h-7 w-7 rounded-md bg-asahi-500 text-white flex items-center justify-center text-[9.5px] font-extrabold shrink-0">{s.code}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-bold text-ink-900 truncate">{s.name}</div>
+                    </div>
+                  </a>
+                );
+              })}
+              {(idea.linkedArticles||[]).map(aid => {
+                const a = data.articlesById[aid];
+                if (!a) return null;
+                return (
+                  <a key={aid} href="#/dashboard" className="flex items-start gap-2 p-2 rounded-lg hover:bg-ink-50 transition">
+                    <div className="text-[14px] shrink-0 pt-0.5">📄</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10.5px] text-ink-500 font-semibold">{a.source}</div>
+                      <div className="text-[12px] font-bold text-ink-900 line-clamp-2">{a.title}</div>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Section({ num, title, children }) {
+  return (
+    <section className="mb-6 pb-6 border-b border-ink-100 last:border-0 last:mb-0 last:pb-0">
+      <div className="flex items-baseline gap-3 mb-2">
+        <span className="font-mono text-asahi-500 text-[11px] tracking-widest font-bold">{num}</span>
+        <h4 className="font-extrabold text-ink-900 text-[14.5px]">{title}</h4>
+      </div>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function FeedbackThread({ ideaId, threads }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const me = data.me;
+  const [draft, setDraft] = useState("");
+  const [role, setRole] = useState("peer");
+  const [aiAssist, setAiAssist] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+
+  function submit() {
+    if (!draft.trim()) return;
+    const fb = {
+      id: "fb_" + Math.random().toString(36).slice(2,8),
+      ideaId,
+      author: me.id,
+      at: new Date().toISOString().replace("T"," ").slice(0,16),
+      role,
+      text: draft,
+      reactions: {}
+    };
+    app.addFeedback(fb);
+    setDraft("");
+    setAiAssist(false);
+  }
+
+  function aiDraft() {
+    setIsTyping(true);
+    setAiAssist(true);
+    const sample = "コンセプトはとても共感します。1点だけ：『独自の強み』セクションで、既存ノンアル製品群（アサヒゼロなど）との差別化をもう少し明確にしたいです。『どのユーザーシーンで勝つのか』を一段深掘りすると、役員レビューの論点が絞りやすくなる気がします。";
+    let i = 0;
+    setDraft("");
+    const t = setInterval(() => {
+      setDraft(sample.slice(0, i));
+      i += 2;
+      if (i >= sample.length) { setDraft(sample); clearInterval(t); setIsTyping(false); }
+    }, 18);
+  }
+
+  const roleTone = { exec:"violet", investor:"blue", advisor:"amber", peer:"slate", author:"red" };
+  const roleLabel = { exec:"役員", investor:"社外取/投資家", advisor:"アドバイザー", peer:"仲間", author:"作者" };
+
+  return (
+    <div>
+      <div className="space-y-3">
+        {threads.length === 0 && <div className="text-[12px] text-ink-500">まだフィードバックはありません。最初のコメントを書きましょう。</div>}
+        {threads.map(f => {
+          const u = data.usersById[f.author];
+          return (
+            <div key={f.id} className="flex gap-3 items-start">
+              <Avatar user={u}/>
+              <div className="flex-1">
+                <div className="flex items-center flex-wrap gap-2 text-[11.5px]">
+                  <span className="font-bold text-ink-900">{u?.name}</span>
+                  <span className="text-ink-500">{u?.role}</span>
+                  <Badge tone={roleTone[f.role] || "slate"}>{roleLabel[f.role]}</Badge>
+                  <span className="ml-auto text-ink-400 text-[11px]">{f.at}</span>
+                </div>
+                <div className="mt-1 text-[13px] text-ink-800 leading-relaxed bg-ink-50/70 rounded-lg ring-1 ring-ink-100 px-3.5 py-2.5">{f.text}</div>
+                <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-500">
+                  <button className="hover:text-asahi-600 inline-flex items-center gap-1"><Icon name="heart" className="w-3.5 h-3.5"/>{f.reactions?.like || ""}</button>
+                  <button className="hover:text-amber-600 inline-flex items-center gap-1"><Icon name="sparkles" className="w-3.5 h-3.5"/>{f.reactions?.insight || ""}</button>
+                  <button className="hover:text-ink-800">返信</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Composer */}
+      <div className="mt-5 pt-5 border-t border-ink-100">
+        <div className="flex items-start gap-3">
+          <Avatar user={me}/>
+          <div className="flex-1">
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-[11.5px] text-ink-500">立場を選んでコメント：</span>
+              {[["peer","仲間"],["exec","役員"],["investor","投資家"],["advisor","アドバイザー"]].map(([k,lbl]) => (
+                <button key={k} onClick={()=>setRole(k)}
+                  className={`px-2 h-6 rounded-full text-[11px] font-semibold border ${role===k ? "bg-ink-900 text-white border-ink-900" : "bg-white text-ink-700 border-ink-200 hover:border-ink-400"}`}>{lbl}</button>
+              ))}
+              <button onClick={aiDraft} className="ml-auto text-[11px] font-semibold text-asahi-600 hover:text-asahi-700 inline-flex items-center gap-1">
+                <Icon name="sparkles" className="w-3.5 h-3.5"/> AIで論点を下書き
+              </button>
+            </div>
+            <textarea rows={3} value={draft} onChange={e=>setDraft(e.target.value)}
+              placeholder="フィードバックを書く…"
+              className={`w-full rounded-lg border border-ink-200 focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none px-3 py-2 text-[13px] ${isTyping ? "blink" : ""}`}/>
+            <div className="mt-2 flex items-center justify-between">
+              <div className="text-[11px] text-ink-500">{aiAssist ? "AI下書きを編集して投稿できます" : "Markdownは使えません"}</div>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={()=>setDraft("")}>クリア</Button>
+                <Button size="sm" icon="send" onClick={submit}>投稿</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: Idea Editor (new)
+// ---------------------------------------------------------------
+function IdeaEditor() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const { query, navigate } = useHashRoute();
+
+  // Prefill context from query (?article=... or ?seed=... or ?suggestion=...)
+  const initCtx = useMemo(() => {
+    const ctx = { articles: [], seeds: [], suggestion: null };
+    if (query.article) ctx.articles.push(query.article);
+    if (query.seed) ctx.seeds.push(query.seed);
+    if (query.suggestion) {
+      const sg = data.aiSuggestions.find(s => s.id === query.suggestion);
+      if (sg) { ctx.suggestion = sg; ctx.seeds.push(...sg.fromSeeds); ctx.articles.push(...sg.fromArticles); }
+    }
+    return ctx;
+  }, [query.article, query.seed, query.suggestion]);
+
+  const [title, setTitle] = useState(initCtx.suggestion ? initCtx.suggestion.title : "");
+  const [codename, setCodename] = useState(initCtx.suggestion ? initCtx.suggestion.title.split(/[ 　-ー『』]/).filter(Boolean)[0] : "");
+  const [linkedSeeds, setLinkedSeeds] = useState(initCtx.seeds);
+  const [linkedArticles, setLinkedArticles] = useState(initCtx.articles);
+  const [form, setForm] = useState({
+    problem: initCtx.suggestion ? initCtx.suggestion.rationale : "",
+    customer: "",
+    solution: "",
+    unfairAdvantage: "",
+    marketSize: "",
+    goToMarket: "",
+    businessModel: "",
+    competitors: "",
+    roadmap: "",
+    risks: "",
+    ask: "",
+  });
+  const [aiFilling, setAiFilling] = useState(null);
+
+  const fieldOrder = [
+    { key:"problem",         label:"解くべき課題 / Why now", num:"01", ph:"どの構造変化が起きていて、なぜ今か。80-150字で。"},
+    { key:"customer",        label:"顧客 / Who", num:"02", ph:"1人称で思い浮かべられる具体性で。"},
+    { key:"solution",        label:"解決策 / Solution", num:"03", ph:"何を提供するか。"},
+    { key:"unfairAdvantage", label:"競合にない強み", num:"04", ph:"自社シーズがどう効くか。"},
+    { key:"marketSize",      label:"市場規模 / TAM", num:"05", ph:"数値の根拠もセットで。"},
+    { key:"goToMarket",      label:"顧客獲得の道筋", num:"06", ph:"最初の100ユーザー／100店舗をどう取るか。"},
+    { key:"businessModel",   label:"ビジネスモデル", num:"07", ph:"単価 × 頻度 × 原価。"},
+    { key:"competitors",     label:"競合", num:"08", ph:"誰が近いか、どう違うか。"},
+    { key:"roadmap",         label:"ロードマップ", num:"09", ph:"Phase1: ... / Phase2: ... のように。"},
+    { key:"risks",           label:"リスク", num:"10", ph:"最大の落とし穴2-3個。"},
+    { key:"ask",             label:"依頼事項 / Ask", num:"11", ph:"予算・人員・意思決定。"},
+  ];
+
+  function upd(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function toggleSeed(id) { setLinkedSeeds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
+  function toggleArticle(id) { setLinkedArticles(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
+
+  function aiFill(k) {
+    setAiFilling(k);
+    const samples = {
+      problem: "GLP-1 の普及で『飲む量 × 飲む動機』の両方が構造変化し、既存のビール事業の成長鈍化リスクが高い。一方で『少量・機能性・気分設計』の新しいニーズが明確に立ち上がっている。",
+      customer: "都市部の25-45歳、健康・パフォーマンスに年間10万円以上投資する層。プライマリは『飲酒習慣を減らしつつも、飲用体験の豊かさは捨てたくない人』。",
+      solution: "REAL-ZERO の本格風味 × Hop-β のリラックス機能性 × LB-4012 の腸機能性。小缶プレミアム + D2Cサブスク。",
+      unfairAdvantage: "20年分の官能評価データ × 独自酵母 × 特許取得済み機能性素材。後発では組み合わせ自体を再現できない。",
+      marketSize: "国内機能性ノンアル市場 $2.5B + 海外ノンアル市場 $28B (2030予測)。",
+      goToMarket: "Phase1: ゼロプルーフバー3店舗 / Phase2: 高感度CVS+D2C / Phase3: GMS + 欧米展開。",
+      businessModel: "D2Cサブスク(月額4,980円〜)+ プレミアム外食 BtoB + 限定小売。",
+      competitors: "Athletic Brewing / Recess / Kin Euphorics。いずれも機能性×本格風味×ライフスタイルの三位一体を実現できていない。",
+      roadmap: "2026 Q3: プロト試作 / 2026 Q4: バー先行 / 2027 Q1: D2C / 2027 Q3: 海外テスト",
+      risks: "機能性表示の遅延 / プレミアム単価の受容性 / 自社ビール事業とのカニバリ（ブランド分離で吸収）。",
+      ask: "R&D + マーケ 1.8億円 / 外食アライアンス 0.5名 / 海外調査 0.2名 / 6ヶ月後に Go/No-Go。"
+    };
+    const txt = samples[k] || "";
+    let i = 0;
+    upd(k, "");
+    const t = setInterval(() => {
+      upd(k, txt.slice(0, i));
+      i += 3;
+      if (i >= txt.length) { upd(k, txt); clearInterval(t); setAiFilling(null); }
+    }, 18);
+  }
+
+  function submit(status) {
+    const id = "i_local_" + Math.random().toString(36).slice(2,8);
+    const formatBody = {
+      ...form,
+      roadmap: [{ period: "〜2026 Q4", milestone: form.roadmap || "（記入予定）" }],
+      risks: (form.risks||"").split(/\n|\/|、/).filter(Boolean),
+    };
+    const idea = {
+      id, codename: codename || "UNTITLED",
+      title: title || "(無題)",
+      author: data.me.id,
+      status,
+      createdAt: "2026-04-24",
+      updatedAt: "2026-04-24",
+      likes: 0,
+      likedBy: [],
+      linkedArticles, linkedSeeds,
+      scores: { market: 3.5, feasibility: 3.5, seedFit: 3.8, novelty: 3.5 },
+      format: formatBody
+    };
+    app.addIdea(idea);
+    // snapshot v1
+    app.snapshotIdea(id, {
+      by: data.me.id,
+      changeNote: status === "ドラフト" ? "ドラフト保存 (初稿)" : "提出 (初稿)",
+      format: formatBody,
+      linkedSeeds: [...linkedSeeds],
+      linkedArticles: [...linkedArticles],
+    });
+    window.location.hash = `#/ideas/${id}`;
+  }
+
+  return (
+    <div className="p-6 lg:p-8 grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="xl:col-span-8 space-y-4">
+        <div>
+          <a href="#/ideas" className="text-[12px] text-ink-500 hover:text-ink-900 inline-flex items-center gap-1"><Icon name="chevron-right" className="w-3.5 h-3.5 rotate-180"/>アイデア一覧</a>
+          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600 mt-2">IDEA EDITOR</div>
+          <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">新しいアイデアを書く</h1>
+          <p className="text-ink-600 text-[13.5px] mt-1">ASAHIの新規事業フォーマットに沿って書きます。右で記事やシーズを引用できます。</p>
+        </div>
+
+        <Card className="p-5">
+          <label className="text-[11px] tracking-widest font-bold text-ink-400">コードネーム & タイトル</label>
+          <div className="flex gap-2 mt-2">
+            <input value={codename} onChange={e=>setCodename(e.target.value)} placeholder="Codename" className="w-40 h-11 px-3 rounded-lg border border-ink-200 font-mono uppercase text-[13px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
+            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="1行で刺さるタイトルを" className="flex-1 h-11 px-3 rounded-lg border border-ink-200 font-bold text-[15px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
+          </div>
+          {initCtx.suggestion && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-asahi-50 ring-1 ring-asahi-200 text-[12px] text-asahi-800 flex items-start gap-2">
+              <Icon name="sparkles" className="w-4 h-4 mt-0.5"/>
+              <div>AI提案『{initCtx.suggestion.title}』のコンテキストをプリフィルしました。必要に応じて編集してください。</div>
+            </div>
+          )}
+        </Card>
+
+        {fieldOrder.map(f => (
+          <Card key={f.key} className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-asahi-500 text-[11px] tracking-widest font-bold">{f.num}</span>
+                <label className="font-extrabold text-ink-900 text-[14.5px]">{f.label}</label>
+              </div>
+              <button onClick={()=>aiFill(f.key)} className="text-[11px] font-semibold text-asahi-600 hover:text-asahi-700 inline-flex items-center gap-1">
+                <Icon name="sparkles" className="w-3.5 h-3.5"/> AIで埋める
+              </button>
+            </div>
+            <textarea rows={3} value={form[f.key]} onChange={e=>upd(f.key, e.target.value)}
+              placeholder={f.ph}
+              className={`mt-2 w-full rounded-lg border border-ink-200 focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none px-3 py-2 text-[13px] ${aiFilling===f.key ? "blink" : ""}`}/>
+          </Card>
+        ))}
+
+        <div className="sticky bottom-4 z-10 flex gap-2 justify-end">
+          <Button variant="outline" onClick={() => window.location.hash = "#/ideas"}>キャンセル</Button>
+          <Button variant="soft" icon="pencil" onClick={()=>submit("ドラフト")}>ドラフト保存</Button>
+          <Button icon="send" onClick={()=>submit("提出済")}>提出する</Button>
+        </div>
+      </div>
+
+      {/* Right: citations */}
+      <div className="xl:col-span-4 space-y-5 xl:sticky xl:top-20 xl:h-[calc(100vh-6rem)] overflow-auto pb-6 pr-1">
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Icon name="sparkles" className="w-4 h-4 text-asahi-600"/>
+            <div className="text-[13px] font-bold text-ink-900">AI アシスト</div>
+          </div>
+          <p className="text-[11.5px] text-ink-600 leading-relaxed">参照中のシーズ・記事から、自動で各セクションの叩き台を作れます。各セクションの<span className="text-asahi-600 font-bold">「AIで埋める」</span>ボタンを押してみてください。</p>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[13px] font-bold text-ink-900">引用するシーズ</div>
+            <Badge tone="red">{linkedSeeds.length}</Badge>
+          </div>
+          <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
+            {data.seeds.map(s => {
+              const on = linkedSeeds.includes(s.id);
+              return (
+                <button key={s.id} onClick={()=>toggleSeed(s.id)} className={`w-full flex items-center gap-2 p-2 rounded-lg transition text-left ${on ? "bg-asahi-50 ring-1 ring-asahi-200" : "hover:bg-ink-50"}`}>
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${on ? "bg-asahi-500 border-asahi-500 text-white" : "border-ink-300"}`}>
+                    {on && <Icon name="check" className="w-3 h-3"/>}
+                  </div>
+                  <div className="h-7 w-7 rounded bg-asahi-500 text-white text-[9px] font-extrabold flex items-center justify-center">{s.code}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11.5px] font-bold text-ink-900 truncate">{s.name}</div>
+                    <div className="text-[10px] text-ink-500 truncate">{s.category}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[13px] font-bold text-ink-900">引用する記事</div>
+            <Badge tone="blue">{linkedArticles.length}</Badge>
+          </div>
+          <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
+            {data.articles.map(a => {
+              const on = linkedArticles.includes(a.id);
+              return (
+                <button key={a.id} onClick={()=>toggleArticle(a.id)} className={`w-full flex items-start gap-2 p-2 rounded-lg transition text-left ${on ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-ink-50"}`}>
+                  <div className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center ${on ? "bg-sky-600 border-sky-600 text-white" : "border-ink-300"}`}>
+                    {on && <Icon name="check" className="w-3 h-3"/>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10.5px] text-ink-500 font-semibold">{a.source} · {a.date}</div>
+                    <div className="text-[11.5px] font-bold text-ink-900 line-clamp-2">{a.title}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: FB Inbox (アイデアに寄せられたFB)
+// ---------------------------------------------------------------
+function InboxPage() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const myIdeas = allIdeas(data, app).filter(i => i.author === data.me.id);
+  const fbs = allFeedback(data, app).filter(f => myIdeas.some(i => i.id === f.ideaId) && f.author !== data.me.id);
+  fbs.sort((a,b) => (b.at||"").localeCompare(a.at||""));
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      <div>
+        <div className="text-[11.5px] tracking-widest font-bold text-asahi-600 mb-1">INBOX</div>
+        <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">自分のアイデアへのフィードバック</h1>
+        <p className="text-ink-600 text-[13.5px] mt-1">役員・投資家・仲間からのコメントをまとめて確認できます。</p>
+      </div>
+      <div className="space-y-3">
+        {fbs.map(f => {
+          const idea = data.ideasById[f.ideaId] || allIdeas(data, app).find(x=>x.id===f.ideaId);
+          const u = data.usersById[f.author];
+          const roleTone = { exec:"violet", investor:"blue", advisor:"amber", peer:"slate" }[f.role] || "slate";
+          return (
+            <Card key={f.id} className="p-4 hover:shadow-pop transition">
+              <div className="flex items-start gap-3">
+                <Avatar user={u}/>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-ink-900 text-[13px]">{u?.name}</span>
+                    <Badge tone={roleTone}>{ {exec:"役員", investor:"投資家", advisor:"アドバイザー", peer:"仲間"}[f.role] || f.role }</Badge>
+                    <span className="text-ink-400 text-[11px] ml-auto">{f.at}</span>
+                  </div>
+                  <a href={`#/ideas/${f.ideaId}`} className="text-[12.5px] font-bold text-asahi-700 hover:text-asahi-800 mt-1 inline-block">#{idea?.codename} — {idea?.title}</a>
+                  <div className="mt-1.5 text-[13px] text-ink-800 leading-relaxed">{f.text}</div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+        {fbs.length === 0 && <Card className="p-10 text-center text-ink-500">まだFBはありません。アイデアを出して意見を集めましょう。</Card>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: Me
+// ---------------------------------------------------------------
+function MePage() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const me = data.me;
+  const all = allIdeas(data, app);
+  const myIdeas = all.filter(i => i.author === me.id);
+  const myLikesGiven = Object.keys(app.state.likedArticles).length + Object.entries(app.state.ideaLikedBy).filter(([,arr]) => arr.includes(me.id)).length;
+  const myFbGiven = allFeedback(data, app).filter(f => f.author === me.id && f.role !== "author").length;
+  const totalLikesReceived = myIdeas.reduce((a,i)=> a + (app.state.ideaLikes[i.id]||0), 0);
+
+  const leaderboard = data.users.filter(u=>!u.isExec && !u.isInvestor).map(u => {
+    const cnt = all.filter(i => i.author === u.id).length;
+    const likes = all.filter(i => i.author === u.id).reduce((s,i)=> s + (app.state.ideaLikes[i.id]||0), 0);
+    return { user: u, count: cnt, likes };
+  }).sort((a,b) => b.count - a.count || b.likes - a.likes);
+
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <div className="text-[11.5px] tracking-widest font-bold text-asahi-600 mb-1">MY ACTIVITY</div>
+          <h1 className="text-2xl lg:text-[26px] font-extrabold tracking-tight text-ink-900">マイページ</h1>
+          <p className="text-ink-500 text-[12.5px] mt-1">あなたの投稿・いいね・与えたフィードバックの記録</p>
+        </div>
+        <Button icon="plus" onClick={()=>window.location.hash = "#/ideas/new"}>アイデアを書く</Button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <StatCard icon="bulb"   label="アイデア数"   value={myIdeas.length} accent="asahi-500"/>
+        <StatCard icon="heart"  label="受けたいいね" value={totalLikesReceived} accent="rose-500"/>
+        <StatCard icon="message" label="与えたFB"    value={myFbGiven} accent="violet-500"/>
+        <StatCard icon="bookmark" label="いいね/保存" value={myLikesGiven} accent="amber-500"/>
+        <StatCard icon="flame"  label="連続アウトプット" value={`${app.state.streak.count}日`} accent="emerald-500"/>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        <div className="xl:col-span-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-extrabold text-ink-900">自分のアイデア</h3>
+            <a href="#/ideas" className="text-[12px] text-ink-500 hover:text-ink-900">もっと見る</a>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {myIdeas.map(i => <IdeaCard key={i.id} idea={i}/>)}
+            {myIdeas.length === 0 && (
+              <Card className="md:col-span-2 p-10 text-center bg-gradient-to-br from-asahi-50/60 to-amber-50/60 border-2 border-dashed border-asahi-200">
+                <div className="text-[28px] mb-2">🌱</div>
+                <div className="font-extrabold text-ink-900 text-[15px]">最初のアイデアを書きましょう</div>
+                <p className="text-[12.5px] text-ink-600 mt-1 max-w-md mx-auto">萌芽RSSで気になる記事を見つけたら、「アイデアに変える」ボタンで2クリックで書き始められます。</p>
+                <div className="mt-4 flex gap-2 justify-center">
+                  <Button icon="plus" onClick={()=>window.location.hash = "#/ideas/new"}>新規作成</Button>
+                  <Button variant="outline" icon="rss" onClick={()=>window.location.hash = "#/dashboard"}>萌芽を浴びる</Button>
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+        <div className="xl:col-span-4 space-y-5">
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Icon name="trophy" className="w-[18px] h-[18px] text-amber-500"/>
+              <div className="text-[13px] font-bold text-ink-900">今月のアウトプット・ランキング</div>
+            </div>
+            <div className="space-y-2">
+              {leaderboard.slice(0,6).map((row, idx) => (
+                <div key={row.user.id} className={`flex items-center gap-3 p-2 rounded-lg ${row.user.id===me.id ? "bg-asahi-50 ring-1 ring-asahi-200" : ""}`}>
+                  <div className={`w-6 text-center text-[12px] font-extrabold ${idx<3 ? "text-amber-600" : "text-ink-400"}`}>{idx+1}</div>
+                  <Avatar user={row.user} size={7}/>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] font-bold truncate">{row.user.name}</div>
+                    <div className="text-[10.5px] text-ink-500 truncate">{row.user.role}</div>
+                  </div>
+                  <div className="text-[11.5px] text-ink-600"><b className="text-ink-900">{row.count}</b> 本 / ♥{row.likes}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card className="p-5">
+            <div className="text-[13px] font-bold text-ink-900 mb-2">最近の活動</div>
+            <div className="space-y-2">
+              {[...data.activity, ...app.state.extraIdeas.map(i=>({id:`ev_${i.id}`, user:me.id, type:"created-idea", at:i.createdAt, target:i.id}))]
+                .sort((a,b) => (b.at||"").localeCompare(a.at||""))
+                .slice(0,8).map(ev => <ActivityRow key={ev.id} ev={ev}/>)}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, accent }) {
+  const accentMap = {
+    "asahi-500":   "bg-asahi-50 text-asahi-600",
+    "rose-500":    "bg-rose-50 text-rose-600",
+    "violet-500":  "bg-violet-50 text-violet-600",
+    "amber-500":   "bg-amber-50 text-amber-600",
+    "emerald-500": "bg-emerald-50 text-emerald-600",
+  };
+  const cls = accentMap[accent] || "bg-ink-100 text-ink-700";
+  return (
+    <Card className="p-4">
+      <div className={`h-8 w-8 rounded-lg ${cls} flex items-center justify-center mb-2`}>
+        <Icon name={icon} className="w-4 h-4"/>
+      </div>
+      <div className="text-[11px] text-ink-500 font-semibold tracking-wider uppercase">{label}</div>
+      <div className="text-2xl font-extrabold text-ink-900">{value}</div>
+    </Card>
+  );
+}
+
+function ActivityRow({ ev }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const u = data.usersById[ev.user];
+  const all = allIdeas(data, app);
+  const i = all.find(x=>x.id===ev.target);
+  const a = data.articlesById[ev.target];
+  const actionText = {
+    "created-idea": "がアイデアを起票",
+    "commented":    "がコメント",
+    "liked":        "がいいね",
+    "saved-article":"が記事を保存",
+    "approved":     "が採択",
+    "linked-seed":  "がシーズを紐付け"
+  }[ev.type] || "";
+  return (
+    <div className="flex items-start gap-2.5 text-[12px]">
+      <Avatar user={u} size={6}/>
+      <div className="leading-tight flex-1 min-w-0">
+        <div><b className="text-ink-900">{u?.name}</b><span className="text-ink-500"> {actionText}</span></div>
+        {i && <a href={`#/ideas/${i.id}`} className="text-[11.5px] text-asahi-700 hover:text-asahi-800 font-bold line-clamp-1">#{i.codename} — {i.title}</a>}
+        {a && <a href="#/dashboard" className="text-[11.5px] text-asahi-700 hover:text-asahi-800 font-bold line-clamp-1">{a.title}</a>}
+        <div className="text-[10.5px] text-ink-400">{relTime(ev.at)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  HistoryPanel — versioned edit history for ideas
+// ---------------------------------------------------------------
+function HistoryPanel({ idea }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const [expanded, setExpanded] = useState(false);
+  const [compareWith, setCompareWith] = useState(null);
+
+  const historyBase = app.state.ideaHistory[idea.id] || [];
+  // current version (synthetic v = last+1)
+  const currentVersion = {
+    v: (historyBase[historyBase.length-1]?.v || 0) + 1,
+    at: idea.updatedAt,
+    by: idea.author,
+    changeNote: "現在の版",
+    format: idea.format,
+    linkedSeeds: idea.linkedSeeds,
+    linkedArticles: idea.linkedArticles,
+    current: true,
+  };
+  const history = [...historyBase, currentVersion];
+  if (history.length < 2) return null;
+
+  const SECTION_LABELS = {
+    problem:"解くべき課題", customer:"顧客", solution:"解決策", unfairAdvantage:"強み",
+    marketSize:"市場規模", goToMarket:"顧客獲得の道筋", businessModel:"ビジネスモデル",
+    competitors:"競合", roadmap:"ロードマップ", risks:"リスク", ask:"依頼事項",
+  };
+
+  function diffSections(a, b) {
+    // Returns changed section keys between two format objects
+    const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+    const changed = [];
+    keys.forEach(k => {
+      const va = JSON.stringify(a?.[k] ?? "");
+      const vb = JSON.stringify(b?.[k] ?? "");
+      if (va !== vb) changed.push(k);
+    });
+    return changed;
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon name="clock" className="w-[18px] h-[18px] text-ink-700"/>
+        <div className="font-extrabold text-[14.5px] text-ink-900">バージョン履歴</div>
+        <Badge tone="slate">{history.length} 版</Badge>
+        <button onClick={()=>setExpanded(v=>!v)} className="ml-auto text-[11.5px] text-ink-500 hover:text-ink-900 font-semibold">
+          {expanded ? "閉じる" : "すべて見る"}
+        </button>
+      </div>
+
+      <div className="relative">
+        <div className="absolute left-[9px] top-2 bottom-2 w-0.5 bg-ink-100"/>
+        <div className="space-y-3">
+          {(expanded ? history : history.slice(-3)).reverse().map((v, idx, arr) => {
+            const u = data.usersById[v.by] || data.usersById["u_shibata"];
+            const prev = history.find(h => h.v === v.v - 1);
+            const changed = prev ? diffSections(prev.format, v.format) : [];
+            const seedChanged = prev && JSON.stringify(prev.linkedSeeds||[]) !== JSON.stringify(v.linkedSeeds||[]);
+            const articleChanged = prev && JSON.stringify(prev.linkedArticles||[]) !== JSON.stringify(v.linkedArticles||[]);
+
+            return (
+              <div key={v.v} className="relative pl-7">
+                <div className={`absolute left-0 top-1 w-[18px] h-[18px] rounded-full ring-4 ring-white flex items-center justify-center text-[9px] font-extrabold ${v.current ? "bg-asahi-500 text-white" : "bg-ink-400 text-white"}`}>v{v.v}</div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[12.5px] font-bold ${v.current ? "text-asahi-700" : "text-ink-900"}`}>
+                    {v.current ? "現在の版" : v.changeNote}
+                  </span>
+                  <span className="text-[11px] text-ink-500">{v.at}</span>
+                  <Avatar user={u} size={5}/>
+                  <span className="text-[11px] text-ink-600">{u?.name}</span>
+                </div>
+                {changed.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    <span className="text-[10.5px] text-ink-500 pr-1">変更:</span>
+                    {changed.map(k => (
+                      <button key={k} onClick={()=>setCompareWith({ v1: prev, v2: v, section: k })}
+                        className="text-[10.5px] font-semibold bg-amber-100 text-amber-800 ring-1 ring-amber-200 px-1.5 py-0.5 rounded hover:bg-amber-200">
+                        {SECTION_LABELS[k] || k} ⚠
+                      </button>
+                    ))}
+                    {seedChanged && <span className="text-[10.5px] font-semibold bg-rose-50 text-rose-700 ring-1 ring-rose-200 px-1.5 py-0.5 rounded">シーズ更新</span>}
+                    {articleChanged && <span className="text-[10.5px] font-semibold bg-sky-50 text-sky-700 ring-1 ring-sky-200 px-1.5 py-0.5 rounded">記事更新</span>}
+                  </div>
+                )}
+                {!prev && !v.current && (
+                  <div className="mt-1 text-[10.5px] text-ink-500">初版 (差分なし)</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {!expanded && history.length > 3 && (
+        <div className="text-[11px] text-ink-500 mt-3 text-center">…過去 {history.length - 3} 版を省略</div>
+      )}
+
+      {compareWith && (
+        <Modal open={true} onClose={()=>setCompareWith(null)} size="xl">
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Badge tone="amber">{SECTION_LABELS[compareWith.section] || compareWith.section}</Badge>
+              <span className="text-[11.5px] text-ink-500">v{compareWith.v1.v} → v{compareWith.v2.v} の差分</span>
+              <button onClick={()=>setCompareWith(null)} className="ml-auto text-ink-400 hover:text-ink-900"><Icon name="x" className="w-4 h-4"/></button>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
+              <div>
+                <div className="text-[10.5px] font-bold tracking-wider text-ink-400 mb-1">v{compareWith.v1.v} — {compareWith.v1.at}</div>
+                <div className="p-3 rounded-lg bg-rose-50 ring-1 ring-rose-200 text-[12.5px] text-ink-800 leading-relaxed whitespace-pre-wrap">
+                  {formatFieldAsText(compareWith.v1.format?.[compareWith.section])}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10.5px] font-bold tracking-wider text-ink-400 mb-1">v{compareWith.v2.v} — {compareWith.v2.at} {compareWith.v2.current && "(現在)"}</div>
+                <div className="p-3 rounded-lg bg-emerald-50 ring-1 ring-emerald-200 text-[12.5px] text-ink-800 leading-relaxed whitespace-pre-wrap">
+                  {formatFieldAsText(compareWith.v2.format?.[compareWith.section])}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 text-[11.5px] text-ink-500">
+              <b>💡 AIサマリ:</b> このバージョンでは{SECTION_LABELS[compareWith.section] || compareWith.section}が書き換えられています。
+              役員FB（{compareWith.v2.changeNote}）を反映した改訂と思われます。
+            </div>
+          </div>
+        </Modal>
+      )}
+    </Card>
+  );
+}
+
+function formatFieldAsText(v) {
+  if (v == null) return "(未入力)";
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    return v.map(x => typeof x === "string" ? "• " + x : `• ${x.period}: ${x.milestone}`).join("\n");
+  }
+  return JSON.stringify(v, null, 2);
+}
+
+// ---------------------------------------------------------------
+//  DecisionPanel — exec approval workflow
+// ---------------------------------------------------------------
+function DecisionPanel({ idea }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const execs = data.users.filter(u => u.isExec);
+  const cons = consensusOf(idea.id, app.state);
+  const approveCount = cons.approve.length;
+  const rejectCount  = cons.reject.length;
+  const holdCount    = cons.hold.length;
+  const decidedCount = approveCount + rejectCount + holdCount;
+  const currentStatus = effectiveStatus(idea, app.state);
+
+  // 判断が一つも入っていない場合はパネルを表示しない (=ノイズ削減)
+  if (decidedCount === 0 && currentStatus !== "採択") return null;
+
+  return (
+    <Card className="p-5 border border-ink-100">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon name="award" className="w-[18px] h-[18px] text-violet-600"/>
+        <div className="font-extrabold text-ink-900 text-[14px]">役員レビュー状況</div>
+        {currentStatus === "採択" && <Badge tone="green">✓ 採択済み</Badge>}
+        {currentStatus === "差し戻し" && <Badge tone="red">差し戻し</Badge>}
+        <span className="ml-auto text-[12px] text-ink-600"><b className="text-violet-700">{approveCount}</b><span className="text-ink-400"> / {execs.length}</span> 承認</span>
+      </div>
+
+      {/* Consensus bar */}
+      <div className="flex h-2 rounded-full overflow-hidden bg-ink-100">
+        <div className="bg-emerald-500 transition-all" style={{width:`${(approveCount/execs.length)*100}%`}}/>
+        <div className="bg-amber-400 transition-all"  style={{width:`${(holdCount/execs.length)*100}%`}}/>
+        <div className="bg-rose-500 transition-all"   style={{width:`${(rejectCount/execs.length)*100}%`}}/>
+      </div>
+
+      {/* Per-exec cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+        {execs.map(u => {
+          const d = (app.state.decisions[idea.id] || {})[u.id];
+          const tone = d?.decision === "approve" ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+                     : d?.decision === "reject"  ? "bg-rose-50 text-rose-800 ring-rose-200"
+                     : d?.decision === "hold"    ? "bg-amber-50 text-amber-800 ring-amber-200"
+                     :                             "bg-ink-50 text-ink-600 ring-ink-200";
+          const label = d?.decision === "approve" ? "承認"
+                      : d?.decision === "reject"  ? "差戻"
+                      : d?.decision === "hold"    ? "保留"
+                      :                             "未判断";
+          return (
+            <div key={u.id} className={`p-2.5 rounded-lg ring-1 ${tone}`}>
+              <div className="flex items-center gap-2">
+                <Avatar user={u} size={6}/>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11.5px] font-bold truncate">{u.name}</div>
+                </div>
+                <span className="text-[10.5px] font-extrabold">{label}</span>
+              </div>
+              {d?.note && <div className="text-[11px] mt-1.5 leading-relaxed opacity-90 line-clamp-2">“{d.note}”</div>}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
+//  PortfolioPanel — post-approval tracking for 採択 ideas
+// ---------------------------------------------------------------
+function PortfolioPanel({ idea, portfolio }) {
+  const done = portfolio.milestones.filter(m => m.done).length;
+  const total = portfolio.milestones.length;
+  return (
+    <Card className="p-6 lg:p-7 border-2 border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/30">
+      <div className="flex items-center gap-2 mb-4">
+        <Icon name="trophy" className="w-5 h-5 text-emerald-600"/>
+        <div className="font-extrabold text-ink-900 text-[15px]">採択後トラッキング</div>
+        <Badge tone="green">Portfolio</Badge>
+        <span className="ml-auto text-[11.5px] text-ink-500">次ゲート: <b className="text-ink-900">{portfolio.nextGate}</b></span>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div className="p-3 rounded-lg bg-white ring-1 ring-ink-100">
+          <div className="text-[10.5px] tracking-wider font-bold text-ink-400">予算</div>
+          <div className="text-xl font-extrabold text-ink-900">¥{portfolio.kpi.budget.toFixed(1)}億</div>
+          <div className="text-[10.5px] text-ink-500">承認済み</div>
+        </div>
+        <div className="p-3 rounded-lg bg-white ring-1 ring-ink-100">
+          <div className="text-[10.5px] tracking-wider font-bold text-ink-400">消化</div>
+          <div className="text-xl font-extrabold text-ink-900">¥{portfolio.kpi.spent.toFixed(1)}億</div>
+          <div className="text-[10.5px] text-ink-500">({Math.round(portfolio.kpi.spent/portfolio.kpi.budget*100)}%)</div>
+        </div>
+        <div className="p-3 rounded-lg bg-white ring-1 ring-ink-100">
+          <div className="text-[10.5px] tracking-wider font-bold text-ink-400">チーム</div>
+          <div className="text-xl font-extrabold text-ink-900">{portfolio.kpi.team} 名</div>
+          <div className="text-[10.5px] text-ink-500">稼働中</div>
+        </div>
+        <div className="p-3 rounded-lg bg-white ring-1 ring-ink-100">
+          <div className="text-[10.5px] tracking-wider font-bold text-ink-400">進捗</div>
+          <div className="text-xl font-extrabold text-ink-900">{portfolio.progress}%</div>
+          <div className="text-[10.5px] text-ink-500">{done}/{total} マイルストーン</div>
+        </div>
+      </div>
+
+      {/* Milestones timeline */}
+      <div className="text-[10.5px] tracking-wider font-bold text-ink-400 mb-2">マイルストーン</div>
+      <div className="relative">
+        <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-ink-100"/>
+        <div className="space-y-3">
+          {portfolio.milestones.map((m, i) => (
+            <div key={i} className="relative pl-6">
+              <div className={`absolute left-0 top-0.5 w-4 h-4 rounded-full ring-2 ring-white ${m.done ? "bg-emerald-500" : m.current ? "bg-amber-400 animate-pulse" : "bg-ink-200"}`}/>
+              <div className="flex items-baseline gap-2">
+                <span className="text-[11px] font-mono text-ink-400 font-bold w-24 shrink-0">{m.at}</span>
+                <span className={`text-[12.5px] ${m.done ? "text-ink-400 line-through" : m.current ? "text-ink-900 font-bold" : "text-ink-700"}`}>{m.label}</span>
+                {m.current && <Badge tone="amber">進行中</Badge>}
+                {m.done && <Icon name="check" className="w-3.5 h-3.5 text-emerald-500"/>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+
+// ---------------------------------------------------------------
+//  OnboardingModal — first-time personalization
+// ---------------------------------------------------------------
+function OnboardingModal() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const [seeds, setSeeds] = useState([...app.state.prefs.focusSeeds]);
+  const [domains, setDomains] = useState([...app.state.prefs.focusDomains]);
+  const DOMAINS = ["発酵/酵母","飲料全般","健康/機能性","サステナ","パッケージ","生活者/世代","食/アップサイクル","AI/R&D"];
+
+  function toggle(arr, v, setter) {
+    setter(arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v]);
+  }
+  function start() {
+    app.setPrefs({ focusSeeds: seeds, focusDomains: domains });
+    window.location.hash = "#/dashboard";
+  }
+
+  if (app.state.prefs.onboarded) return null;
+  return (
+    <Modal open={true} onClose={()=>{}} size="lg">
+      <div className="p-8">
+        <div className="flex items-center gap-2 mb-1">
+          <Icon name="logo" className="w-7 h-7"/>
+          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">SPROUT へようこそ</div>
+        </div>
+        <h2 className="text-2xl font-extrabold tracking-tight text-ink-900">興味ある領域を選んでください</h2>
+        <p className="text-ink-600 text-[13px] mt-1">朝のフィード上段にこの領域の記事を並べます。あとからいつでも変更できます。</p>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-5">
+          {DOMAINS.map(d => {
+            const on = domains.includes(d);
+            return (
+              <button key={d} onClick={()=>toggle(domains, d, setDomains)}
+                className={`p-3 rounded-lg border-2 transition text-[12.5px] font-bold ${on ? "border-asahi-500 bg-asahi-50 text-asahi-700" : "border-ink-200 hover:border-ink-400 text-ink-700"}`}>
+                {d}
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-[11px] text-ink-500 mt-3">選択中 <b className="text-ink-900">{domains.length}</b> 個 (推奨 2-4個)</div>
+
+        <div className="flex items-center justify-between mt-6 pt-5 border-t border-ink-100">
+          <button onClick={start} className="text-[12px] text-ink-500 hover:text-ink-900">スキップ</button>
+          <Button variant="dark" icon="check" onClick={start}>始める</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Command Palette — global search across ideas/articles/seeds/FB/people
+//  Shortcut: ⌘K (Mac) / Ctrl+K (Win)
+// ---------------------------------------------------------------
+function useCommandPalette() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setOpen(v => !v);
+      }
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  return { open, setOpen };
+}
+
+function CommandPalette({ open, onClose, liveArticles = [] }) {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const [q, setQ] = useState("");
+  const [activeIdx, setActiveIdx] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) { setQ(""); setActiveIdx(0); setTimeout(()=>inputRef.current?.focus(), 30); }
+  }, [open]);
+
+  const results = useMemo(() => {
+    if (!open) return [];
+    const query = q.trim().toLowerCase();
+
+    // Helper: score a text blob against the query
+    function score(texts, weights) {
+      if (!query) return weights.default || 0;
+      let s = 0;
+      query.split(/\s+/).filter(Boolean).forEach(tok => {
+        texts.forEach((t, i) => {
+          const L = (t || "").toLowerCase();
+          if (!L) return;
+          const w = weights.byField[i] || 1;
+          // exact title/name match heavily boosted
+          if (L === tok) s += w * 8;
+          else if (L.startsWith(tok)) s += w * 4;
+          else if (L.includes(tok)) s += w * 2;
+        });
+      });
+      return s;
+    }
+
+    const out = [];
+
+    // Ideas
+    allIdeas(data, app).forEach(i => {
+      const s = score([i.title, i.codename, ...(Object.values(i.format || {}).filter(v => typeof v === "string"))], { byField: [5, 6, 1], default: 0 });
+      if (s > 0 || !query) out.push({ kind: "idea", score: s, entity: i, href: `#/ideas/${i.id}`, label: i.title, meta: `#${i.codename} · ${effectiveStatus(i, app.state)}` });
+    });
+
+    // Seeds
+    data.seeds.forEach(s_ => {
+      const s = score([s_.name, s_.code, s_.summary, ...s_.tags], { byField: [5, 7, 1, 2], default: 0 });
+      if (s > 0 || !query) out.push({ kind: "seed", score: s, entity: s_, href: `#/seeds`, label: `${s_.code} — ${s_.name}`, meta: s_.category });
+    });
+
+    // Articles (mock + live)
+    const allArticles = [...(liveArticles || []), ...data.articles];
+    allArticles.forEach(a => {
+      const s = score([a.title, a.source, ...(a.summary || []), ...(a.tags || [])], { byField: [5, 2, 1, 2], default: 0 });
+      if (s > 0) out.push({ kind: "article", score: s, entity: a, href: a.url || `#/dashboard`, label: a.title, meta: `${a.source}${a.live ? " · LIVE" : ""}`, external: !!a.url });
+    });
+
+    // Users
+    data.users.forEach(u => {
+      const s = score([u.name, u.role, u.dept], { byField: [5, 1, 1], default: 0 });
+      if (s > 0) out.push({ kind: "person", score: s, entity: u, href: `#/ideas`, label: u.name, meta: `${u.role} · ${u.dept}` });
+    });
+
+    // Feedback
+    allFeedback(data, app).forEach(f => {
+      const s = score([f.text], { byField: [1], default: 0 });
+      if (s > 2) {
+        const idea = allIdeas(data, app).find(i => i.id === f.ideaId);
+        const u = data.usersById[f.author];
+        out.push({ kind: "feedback", score: s * 0.6, entity: f, href: `#/ideas/${f.ideaId}`, label: `${u?.name}: ${f.text.slice(0, 70)}…`, meta: `#${idea?.codename || "?"}` });
+      }
+    });
+
+    // If no query, show sensible defaults
+    if (!query) {
+      return [
+        ...allIdeas(data, app).slice(0, 4).map(i => ({ kind: "idea", score: 1, entity: i, href: `#/ideas/${i.id}`, label: i.title, meta: `#${i.codename}` })),
+        ...data.seeds.slice(0, 3).map(s_ => ({ kind: "seed", score: 1, entity: s_, href: `#/seeds`, label: `${s_.code} — ${s_.name}`, meta: s_.category })),
+      ];
+    }
+
+    out.sort((a,b) => b.score - a.score);
+    return out.slice(0, 30);
+  }, [q, open, liveArticles, app.state.extraIdeas, app.state.extraFeedback, app.state.decisions]);
+
+  useEffect(() => { setActiveIdx(0); }, [q]);
+
+  function go(r) {
+    if (r.external) {
+      window.open(r.href, "_blank", "noopener");
+    } else {
+      window.location.hash = r.href;
+    }
+    onClose();
+  }
+
+  function onKey(e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i+1, results.length-1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIdx(i => Math.max(i-1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); if (results[activeIdx]) go(results[activeIdx]); }
+  }
+
+  const grouped = useMemo(() => {
+    const g = {};
+    results.forEach(r => { (g[r.kind] = g[r.kind] || []).push(r); });
+    return g;
+  }, [results]);
+  const groupOrder = ["idea", "seed", "article", "feedback", "person"];
+  const groupLabels = { idea: "アイデア", seed: "シーズ", article: "記事", feedback: "コメント", person: "メンバー" };
+  const groupIcons =  { idea: "bulb",  seed: "beaker", article: "rss",  feedback: "message", person: "user" };
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] px-4 bg-ink-900/40 backdrop-blur-sm fade-in" onClick={onClose}>
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-pop ring-1 ring-ink-200 overflow-hidden" onClick={e=>e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-ink-100">
+          <Icon name="search" className="w-5 h-5 text-ink-400"/>
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)} onKeyDown={onKey}
+            placeholder="検索 — アイデア / シーズ / 記事 / コメント / メンバー"
+            className="flex-1 h-9 text-[14px] outline-none"/>
+          <kbd className="px-1.5 h-5 text-[10px] rounded bg-ink-100 text-ink-600 border border-ink-200 font-mono">Esc</kbd>
+        </div>
+        <div className="max-h-[60vh] overflow-auto">
+          {results.length === 0 && (
+            <div className="p-10 text-center text-[13px] text-ink-500">該当する結果がありません。</div>
+          )}
+          {groupOrder.map(g => {
+            const items = grouped[g];
+            if (!items || !items.length) return null;
+            return (
+              <div key={g}>
+                <div className="px-4 py-1.5 bg-ink-50 text-[10.5px] font-bold tracking-widest text-ink-500 uppercase flex items-center gap-1.5 border-y border-ink-100">
+                  <Icon name={groupIcons[g]} className="w-3.5 h-3.5"/> {groupLabels[g]} <span className="text-ink-400">({items.length})</span>
+                </div>
+                {items.map((r, i) => {
+                  const globalIdx = results.indexOf(r);
+                  const isActive = globalIdx === activeIdx;
+                  return (
+                    <button key={`${g}_${i}`} onMouseEnter={()=>setActiveIdx(globalIdx)} onClick={()=>go(r)}
+                      className={`w-full text-left px-4 py-2.5 flex items-start gap-3 border-b border-ink-100 last:border-0 ${isActive ? "bg-asahi-50" : "hover:bg-ink-50"}`}>
+                      <div className={`h-7 w-7 rounded-lg flex items-center justify-center shrink-0 ${isActive ? "bg-asahi-500 text-white" : "bg-ink-100 text-ink-600"}`}>
+                        <Icon name={groupIcons[g]} className="w-3.5 h-3.5"/>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12.5px] font-bold text-ink-900 line-clamp-1">{r.label}</div>
+                        <div className="text-[10.5px] text-ink-500 line-clamp-1 mt-0.5">{r.meta}</div>
+                      </div>
+                      {r.external && <Icon name="arrow-up-right" className="w-3.5 h-3.5 text-ink-400 mt-1"/>}
+                      {isActive && !r.external && <div className="text-[10px] text-asahi-600 font-bold self-center">Enter ↩</div>}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-4 py-2 border-t border-ink-100 flex items-center gap-4 text-[10.5px] text-ink-500 bg-ink-50/50">
+          <span className="inline-flex items-center gap-1"><kbd className="px-1 rounded bg-white border border-ink-200 font-mono">↑</kbd><kbd className="px-1 rounded bg-white border border-ink-200 font-mono">↓</kbd> 移動</span>
+          <span className="inline-flex items-center gap-1"><kbd className="px-1 rounded bg-white border border-ink-200 font-mono">↵</kbd> 開く</span>
+          <span className="inline-flex items-center gap-1"><kbd className="px-1 rounded bg-white border border-ink-200 font-mono">Esc</kbd> 閉じる</span>
+          <span className="ml-auto">{results.length} 件</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Page: Sources Admin — live ingestion pipeline health
+// ---------------------------------------------------------------
+function SourcesAdminPage() {
+  const live = useLive();
+  const [meta, setMeta] = useState(null);
+  const [tab, setTab] = useState("list"); // list | groups
+  const [editing, setEditing] = useState(null); // source object or "new"
+  const [presetOpen, setPresetOpen] = useState(false);
+  const [busy, setBusy] = useState({}); // id -> "refresh" | "delete"
+  const [filter, setFilter] = useState("all"); // all | enabled | disabled | error
+
+  const reload = useCallback(() => {
+    fetch("/api/sources").then(r => r.json()).then(setMeta).catch(()=>{});
+  }, []);
+  useEffect(() => { reload(); }, [reload, live.lastRefreshedAt]);
+
+  const sources = meta?.sources || [];
+  const filtered = sources.filter(s => {
+    if (filter === "enabled")  return s.enabled;
+    if (filter === "disabled") return !s.enabled;
+    if (filter === "error")    return s.status?.ok === false;
+    return true;
+  });
+
+  const enabledCount = sources.filter(s => s.enabled).length;
+  const failCount = sources.filter(s => s.status?.ok === false).length;
+
+  const setBusyFor = (id, label) => setBusy(b => ({ ...b, [id]: label }));
+  const clearBusy  = (id) => setBusy(b => { const n = {...b}; delete n[id]; return n; });
+
+  async function toggleEnabled(s) {
+    const next = !s.enabled;
+    setMeta(m => ({ ...m, sources: m.sources.map(x => x.id === s.id ? { ...x, enabled: next } : x) }));
+    setBusyFor(s.id, "toggle");
+    try {
+      await fetch(`/api/sources/${s.id}`, { method:"PATCH", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ enabled: next }) });
+    } catch (e) {} finally { clearBusy(s.id); }
+  }
+  async function refreshOne(s) {
+    setBusyFor(s.id, "refresh");
+    try {
+      await fetch(`/api/sources/${s.id}/refresh`, { method:"POST" });
+      live.refresh(true);
+      setTimeout(reload, 500);
+    } finally { clearBusy(s.id); }
+  }
+  async function removeSource(s) {
+    if (!confirm(`「${s.name}」を${s.builtin ? "無効化" : "削除"}しますか？`)) return;
+    setBusyFor(s.id, "delete");
+    try {
+      await fetch(`/api/sources/${s.id}`, { method:"DELETE" });
+      reload();
+    } finally { clearBusy(s.id); }
+  }
+  async function saveSource(form, originalId) {
+    const url = originalId ? `/api/sources/${originalId}` : `/api/sources`;
+    const method = originalId ? "PATCH" : "POST";
+    const r = await fetch(url, { method, headers:{"Content-Type":"application/json"}, body: JSON.stringify(form) });
+    if (!r.ok) {
+      const e = await r.json().catch(()=>({error:"unknown"}));
+      alert("保存できませんでした: " + (e.error || r.status));
+      return false;
+    }
+    setEditing(null);
+    reload();
+    return true;
+  }
+  async function addPreset(p) {
+    const exists = sources.find(s => s.id === p.id || s.url === p.url);
+    if (exists) {
+      if (!exists.enabled) await toggleEnabled(exists);
+      alert(`「${p.name}」は既に登録済みです${exists.enabled ? "" : " — 有効化しました"}。`);
+      return;
+    }
+    await fetch(`/api/sources`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(p) });
+    reload();
+  }
+
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      {/* Header */}
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-[11.5px] text-ink-500 font-semibold mb-1.5">
+            <Icon name="rss" className="w-3.5 h-3.5"/>
+            <span>SETTINGS</span>
+          </div>
+          <h1 className="text-[24px] lg:text-[26px] font-extrabold tracking-tight text-ink-900 inline-flex items-center gap-2">
+            情報ソース管理
+          </h1>
+          <p className="text-ink-500 text-[12.5px] mt-1">
+            <b className="text-ink-900">{enabledCount} 件</b> 稼働中 / 全 <b>{sources.length} 件</b>{failCount > 0 && <> · <span className="text-rose-600 font-semibold">{failCount} 件エラー</span></>}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" icon="globe" onClick={()=>setPresetOpen(true)}>プリセットから追加</Button>
+          <Button variant="primary" icon="plus" onClick={()=>setEditing("new")}>新規追加</Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-1 p-1 bg-cream-100/80 rounded-xl w-fit">
+        <button onClick={()=>setTab("list")}
+          className={`px-4 h-9 rounded-lg text-[12.5px] font-bold transition ${tab==="list" ? "bg-white text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"}`}>
+          ソース一覧
+        </button>
+        <button onClick={()=>setTab("groups")}
+          className={`px-4 h-9 rounded-lg text-[12.5px] font-bold transition ${tab==="groups" ? "bg-white text-ink-900 shadow-sm" : "text-ink-500 hover:text-ink-800"}`}>
+          グループ管理
+        </button>
+      </div>
+
+      {tab === "list" && (
+        <>
+          {/* Filter chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] tracking-widest font-bold text-ink-400 mr-1">FILTER</span>
+            {[
+              { k:"all",      label:`すべて (${sources.length})` },
+              { k:"enabled",  label:`稼働中 (${enabledCount})` },
+              { k:"disabled", label:`停止中 (${sources.length - enabledCount})` },
+              { k:"error",    label:`エラー (${failCount})`, danger:true },
+            ].map(f => (
+              <button key={f.k} onClick={()=>setFilter(f.k)}
+                className={`px-3 h-7 rounded-full text-[11.5px] font-semibold border transition ${
+                  filter===f.k
+                    ? (f.danger ? "bg-rose-500 text-white border-rose-500" : "bg-asahi-500 text-white border-asahi-500")
+                    : (f.danger ? "bg-white text-rose-700 border-rose-200 hover:border-rose-400" : "bg-white text-ink-700 border-ink-200 hover:border-asahi-300 hover:text-asahi-700")
+                }`}>
+                {f.label}
+              </button>
+            ))}
+            <span className="ml-auto"/>
+            <Button size="sm" variant="ghost" icon="rss" onClick={()=>live.refresh(true)} disabled={live.loading}>全ソース再取得</Button>
+          </div>
+
+          {/* Source cards */}
+          <div className="space-y-2.5">
+            {filtered.map(s => (
+              <SourceCard key={s.id} s={s} busy={busy[s.id]}
+                onToggle={()=>toggleEnabled(s)}
+                onEdit={()=>setEditing(s)}
+                onDelete={()=>removeSource(s)}
+                onRefresh={()=>refreshOne(s)}
+              />
+            ))}
+            {filtered.length === 0 && (
+              <Card className="p-10 text-center text-ink-500 text-[13px]">
+                {sources.length === 0 ? "読み込み中…" : "条件に一致するソースがありません"}
+              </Card>
+            )}
+          </div>
+        </>
+      )}
+
+      {tab === "groups" && (
+        <div className="space-y-4">
+          {[
+            { key:"region",   label:"地域別",     get:s=>s.region||"—",   tone:"slate" },
+            { key:"category", label:"カテゴリ別", get:s=>s.category||"—", tone:"red" },
+            { key:"lang",     label:"言語別",     get:s=>s.lang,          tone:"blue" },
+          ].map(group => {
+            const buckets = {};
+            sources.forEach(s => { (buckets[group.get(s)] ||= []).push(s); });
+            return (
+              <Card key={group.key} className="p-5">
+                <div className="text-[11px] tracking-widest font-bold text-ink-400 mb-3">{group.label}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {Object.entries(buckets).map(([k, arr]) => (
+                    <div key={k} className="p-3 rounded-xl ring-1 ring-ink-100 bg-cream-50/40">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge tone={group.tone}>{k}</Badge>
+                        <span className="text-[11px] text-ink-500 font-semibold">{arr.length} 件</span>
+                      </div>
+                      <div className="space-y-1">
+                        {arr.slice(0,5).map(s => (
+                          <div key={s.id} className="flex items-center gap-1.5 text-[11.5px]">
+                            <span className={`w-1.5 h-1.5 rounded-full ${s.enabled ? "bg-sprout-500" : "bg-ink-300"}`}/>
+                            <span className={`truncate ${s.enabled ? "text-ink-800" : "text-ink-400 line-through"}`}>{s.name}</span>
+                          </div>
+                        ))}
+                        {arr.length > 5 && <div className="text-[10.5px] text-ink-400 mt-1">他 {arr.length-5} 件…</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pipeline meta (collapsible details) */}
+      <details className="rounded-xl bg-white ring-1 ring-ink-100 overflow-hidden">
+        <summary className="px-5 py-3 cursor-pointer font-bold text-[13px] text-ink-700 hover:bg-cream-50 flex items-center gap-2">
+          <Icon name="chevron-right" className="w-4 h-4 transition group-open:rotate-90"/>
+          高度な設定 — スコアリング / AI要約
+        </summary>
+        <div className="p-5 border-t border-ink-100 space-y-4">
+          {/* LLM */}
+          <div className="flex items-start gap-3 p-4 rounded-xl ring-1 ring-violet-100 bg-violet-50/30">
+            <div className={`h-9 w-9 rounded-lg flex items-center justify-center text-white shrink-0 ${meta?.llm?.enabled ? "bg-gradient-to-br from-violet-500 to-asahi-500" : "bg-ink-300"}`}>
+              <Icon name="sparkles" className="w-4 h-4"/>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="font-extrabold text-[13.5px] text-ink-900">AI要約 (Claude)</div>
+                {meta?.llm?.enabled
+                  ? <Badge tone="violet">有効 · {meta.llm.model}</Badge>
+                  : <Badge tone="slate">未接続</Badge>}
+              </div>
+              <p className="text-[11.5px] text-ink-600 mt-1 leading-relaxed">
+                {meta?.llm?.enabled
+                  ? <>上位 <b>{meta.llm.topN || 20}</b> 件を3行要約に置換中(前回 <b>{meta.llm.summarized ?? 0}</b> 件)。</>
+                  : <>環境変数 <code className="bg-ink-100 px-1 rounded text-[10.5px]">ANTHROPIC_API_KEY</code> を設定すると有効化。</>}
+              </p>
+            </div>
+          </div>
+          {/* Domains / seeds / HN */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="p-3 rounded-xl ring-1 ring-ink-100">
+              <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">関連度ドメイン</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(meta?.relevanceDomains || []).map(d => <Badge key={d} tone="red">{d}</Badge>)}
+              </div>
+            </div>
+            <div className="p-3 rounded-xl ring-1 ring-ink-100">
+              <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">シーズ照合</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(meta?.seedKeywords || []).map(sid => {
+                  const seed = window.SPROUT_DATA.seedsById[sid];
+                  return <Badge key={sid} tone="amber">{seed?.code || sid}</Badge>;
+                })}
+              </div>
+            </div>
+            <div className="p-3 rounded-xl ring-1 ring-ink-100">
+              <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">HN検索語</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(meta?.hnTerms || []).slice(0, 12).map(t => <Badge key={t} tone="blue">{t}</Badge>)}
+                {(meta?.hnTerms || []).length > 12 && <span className="text-[10.5px] text-ink-400">+{meta.hnTerms.length-12}</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      {/* Edit modal */}
+      <SourceEditModal
+        open={editing !== null}
+        source={editing === "new" ? null : editing}
+        meta={meta}
+        onSave={(form) => saveSource(form, editing && editing !== "new" ? editing.id : null)}
+        onClose={() => setEditing(null)}
+      />
+
+      {/* Preset modal */}
+      <PresetPickerModal
+        open={presetOpen}
+        presets={meta?.presets || []}
+        existing={sources}
+        onPick={(p) => addPreset(p)}
+        onClose={() => setPresetOpen(false)}
+      />
+
+      {/* Hidden architecture pre block (kept for power users) */}
+      <details className="rounded-xl bg-white ring-1 ring-ink-100 overflow-hidden">
+        <summary className="px-5 py-3 cursor-pointer font-bold text-[13px] text-ink-700 hover:bg-cream-50">
+          パイプライン構成図 (デバッグ)
+        </summary>
+        <pre className="font-mono text-[11px] text-ink-700 leading-relaxed overflow-auto p-5 border-t border-ink-100">{`Python HTTP server (stdlib only, no pip install)
+├─ /                        static files
+├─ GET    /api/articles     並列フェッチ + 正規化 + スコアリング + キャッシュ
+├─ GET    /api/sources      ソース一覧 + 状態 + プリセット
+├─ POST   /api/sources      ソース追加
+├─ PATCH  /api/sources/<id> ソース編集 / 有効・無効切替
+├─ DELETE /api/sources/<id> ソース削除 (組込みは無効化)
+└─ POST   /api/sources/<id>/refresh 個別再取得
+
+Sources (${sources.length} 登録 · ${enabledCount} 稼働)`}</pre>
+      </details>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Source card / Edit modal / Preset picker
+// ---------------------------------------------------------------
+function SourceCard({ s, busy, onToggle, onEdit, onDelete, onRefresh }) {
+  const ok = s.status?.ok;
+  const lastFetched = s.status?.fetchedAt || (window.__sproutLastFetched || null);
+  return (
+    <div className={`rounded-2xl bg-white ring-1 transition ${
+      ok === false ? "ring-rose-200/80 bg-rose-50/30" : "ring-ink-100 hover:ring-asahi-200 hover:shadow-card"
+    }`}>
+      <div className="flex items-center gap-4 px-4 py-3.5">
+        {/* Toggle */}
+        <button onClick={onToggle} disabled={busy === "toggle"}
+          className={`relative shrink-0 w-11 h-6 rounded-full transition ${s.enabled ? "bg-asahi-500" : "bg-ink-200"} ${busy === "toggle" ? "opacity-60" : ""}`}
+          aria-label="有効/無効を切り替え">
+          <span className={`absolute top-0.5 h-5 w-5 bg-white rounded-full shadow-sm transition-all ${s.enabled ? "left-5" : "left-0.5"}`}/>
+        </button>
+
+        {/* Identity */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className={`text-[14px] font-extrabold truncate ${s.enabled ? "text-ink-900" : "text-ink-500"}`}>{s.name}</div>
+            <Badge tone={CAT_TONE[s.category] || "slate"}>{s.category}</Badge>
+            <Badge tone="slate">{s.region || "—"}</Badge>
+            <span className="text-[11px] text-ink-500">{s.lang}</span>
+            {s.builtin && <Badge tone="slate">組込み</Badge>}
+            {ok === false && <Badge tone="red">エラー</Badge>}
+            {ok === true && <Badge tone="green">正常</Badge>}
+          </div>
+          <div className="mt-1 flex items-center gap-3 text-[11.5px] text-ink-500">
+            {s.url
+              ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="hover:text-asahi-600 truncate inline-flex items-center gap-1 max-w-[460px]">
+                  <Icon name="link" className="w-3 h-3 shrink-0"/>
+                  <span className="truncate">{s.url.replace(/^https?:\/\//,"")}</span>
+                </a>
+              : <span className="text-ink-400">— カスタムフェッチャ —</span>}
+            {s.status?.total != null && (
+              <span className="inline-flex items-center gap-1">
+                <Icon name="clock" className="w-3 h-3"/>
+                直近 <b className="text-ink-700 mx-0.5">{s.status.total}</b> 件取得
+                {s.status.relevant != null && <> ・関連 <b className="text-asahi-700 mx-0.5">{s.status.relevant}</b></>}
+                {s.status.ms && <> ・{s.status.ms}ms</>}
+              </span>
+            )}
+          </div>
+          {ok === false && s.status?.error && (
+            <div className="mt-1 text-[11px] text-rose-600 font-semibold truncate" title={s.status.error}>✗ {s.status.error}</div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={onRefresh} disabled={!!busy} title="このソースを再取得"
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-ink-500 hover:bg-cream-100 hover:text-asahi-600 disabled:opacity-50 transition">
+            <span className={busy === "refresh" ? "inline-block animate-spin" : ""}>↻</span>
+          </button>
+          <button onClick={onEdit} title="編集"
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-ink-500 hover:bg-cream-100 hover:text-ink-900 transition">
+            <Icon name="pencil" className="w-4 h-4"/>
+          </button>
+          <button onClick={onDelete} disabled={!!busy} title={s.builtin ? "無効化(組込みは削除不可)" : "削除"}
+            className="h-9 w-9 rounded-lg flex items-center justify-center text-rose-500 hover:bg-rose-50 disabled:opacity-50 transition">
+            <Icon name="x" className="w-4 h-4"/>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CAT_TONE = {
+  "生活者トレンド":     "red",
+  "市場統計":           "blue",
+  "海外/先進企業事例":  "green",
+  "事業アイデア例":     "amber",
+};
+
+function SourceEditModal({ open, source, meta, onSave, onClose }) {
+  const isNew = !source;
+  const [form, setForm] = useState(() => source || { name:"", url:"", category:"生活者トレンド", region:"海外", lang:"EN", type:"カスタム", enabled:true });
+  useEffect(() => {
+    if (open) setForm(source || { name:"", url:"", category:"生活者トレンド", region:"海外", lang:"EN", type:"カスタム", enabled:true });
+  }, [open, source]);
+
+  if (!open) return null;
+  const cats    = meta?.categories || ["生活者トレンド","市場統計","海外/先進企業事例","事業アイデア例"];
+  const regions = meta?.regions    || ["国内","海外"];
+  const langs   = meta?.langs      || ["JP","EN"];
+  const update  = (k,v) => setForm(f => ({ ...f, [k]: v }));
+  const submit  = async () => {
+    if (!form.name?.trim() || !form.url?.trim()) { alert("ソース名とURLは必須です"); return; }
+    await onSave(form);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} size="md">
+      <div className="px-5 py-4 border-b border-ink-100 flex items-center gap-2">
+        <div className="h-8 w-8 rounded-lg bg-asahi-50 text-asahi-600 flex items-center justify-center">
+          <Icon name={isNew ? "plus" : "pencil"} className="w-4 h-4"/>
+        </div>
+        <div className="font-extrabold text-[15px] text-ink-900">{isNew ? "ソースを追加" : "ソースを編集"}</div>
+      </div>
+      <div className="p-5 space-y-3.5">
+        <Field label="ソース名" required>
+          <input value={form.name || ""} onChange={e=>update("name", e.target.value)}
+            placeholder="例: 日経新聞"
+            className="w-full h-10 px-3 rounded-lg border border-ink-200 focus:border-asahi-400 focus:ring-2 focus:ring-asahi-100 text-[13px] outline-none"/>
+        </Field>
+        <Field label="フィードURL (RSS / Atom / RDF)" required>
+          <input value={form.url || ""} onChange={e=>update("url", e.target.value)}
+            placeholder="https://example.com/feed.xml"
+            className="w-full h-10 px-3 rounded-lg border border-ink-200 focus:border-asahi-400 focus:ring-2 focus:ring-asahi-100 text-[13px] outline-none font-mono"/>
+        </Field>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="カテゴリ">
+            <select value={form.category} onChange={e=>update("category", e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-ink-200 focus:border-asahi-400 focus:ring-2 focus:ring-asahi-100 text-[13px] outline-none bg-white">
+              {cats.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+          <Field label="地域">
+            <select value={form.region} onChange={e=>update("region", e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-ink-200 focus:border-asahi-400 focus:ring-2 focus:ring-asahi-100 text-[13px] outline-none bg-white">
+              {regions.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </Field>
+          <Field label="言語">
+            <select value={form.lang} onChange={e=>update("lang", e.target.value)}
+              className="w-full h-10 px-3 rounded-lg border border-ink-200 focus:border-asahi-400 focus:ring-2 focus:ring-asahi-100 text-[13px] outline-none bg-white">
+              {langs.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="種別ラベル(任意)">
+          <input value={form.type || ""} onChange={e=>update("type", e.target.value)}
+            placeholder="例: 国内メディア / 海外スタートアップ"
+            className="w-full h-10 px-3 rounded-lg border border-ink-200 focus:border-asahi-400 focus:ring-2 focus:ring-asahi-100 text-[13px] outline-none"/>
+        </Field>
+        <label className="flex items-center gap-2 mt-2">
+          <input type="checkbox" checked={!!form.enabled} onChange={e=>update("enabled", e.target.checked)} className="rounded"/>
+          <span className="text-[12.5px] text-ink-700">追加と同時に有効化する</span>
+        </label>
+      </div>
+      <div className="px-5 py-3 border-t border-ink-100 bg-cream-50/40 flex items-center justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>キャンセル</Button>
+        <Button variant="primary" icon="check" onClick={submit}>{isNew ? "追加" : "保存"}</Button>
+      </div>
+    </Modal>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <div>
+      <div className="text-[11px] font-bold text-ink-600 mb-1.5 inline-flex items-center gap-1">
+        {label} {required && <span className="text-asahi-500">*</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function PresetPickerModal({ open, presets, existing, onPick, onClose }) {
+  const existingIds  = new Set((existing || []).map(s => s.id));
+  const existingUrls = new Set((existing || []).map(s => s.url).filter(Boolean));
+  if (!open) return null;
+  return (
+    <Modal open={open} onClose={onClose} size="lg">
+      <div className="px-5 py-4 border-b border-ink-100 flex items-center gap-2">
+        <div className="h-8 w-8 rounded-lg bg-sprout-50 text-sprout-700 flex items-center justify-center">
+          <Icon name="globe" className="w-4 h-4"/>
+        </div>
+        <div className="font-extrabold text-[15px] text-ink-900">プリセットから追加</div>
+        <span className="ml-auto text-[11.5px] text-ink-500">{presets.length} 件のおすすめソース</span>
+      </div>
+      <div className="p-4 max-h-[60vh] overflow-auto space-y-2">
+        {presets.map(p => {
+          const already = existingIds.has(p.id) || (p.url && existingUrls.has(p.url));
+          return (
+            <div key={p.id} className="flex items-center gap-3 p-3 rounded-xl ring-1 ring-ink-100 hover:bg-cream-50 transition">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="font-bold text-[13px] text-ink-900 truncate">{p.name}</div>
+                  <Badge tone={CAT_TONE[p.category] || "slate"}>{p.category}</Badge>
+                  <Badge tone="slate">{p.region}</Badge>
+                  <span className="text-[10.5px] text-ink-500">{p.lang}</span>
+                </div>
+                <div className="text-[11px] text-ink-500 truncate mt-0.5">{p.url}</div>
+              </div>
+              <Button size="sm" variant={already ? "soft" : "primary"} icon={already ? "check" : "plus"}
+                onClick={()=>{ onPick(p); }} disabled={already}>
+                {already ? "登録済" : "追加"}
+              </Button>
+            </div>
+          );
+        })}
+        {presets.length === 0 && <div className="p-6 text-center text-ink-500">プリセットがありません</div>}
+      </div>
+      <div className="px-5 py-3 border-t border-ink-100 bg-cream-50/40 flex items-center justify-end">
+        <Button variant="ghost" onClick={onClose}>閉じる</Button>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Setup Guide (初見ユーザー向け使い方)
+// ---------------------------------------------------------------
+function SetupGuidePage() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const { navigate } = useHashRoute();
+
+  const steps = [
+    {
+      n: 1,
+      icon: "rss",
+      tone: "asahi",
+      title: "ニュースを浴びる",
+      hint: "毎朝3分",
+      desc: "ダッシュボードを開くと、世の中の動きを 19 のRSS/ニュース API から自動収集して表示します。「あなた向け5本」に、あなたの担当シーズと最も重なる記事が並びます。",
+      bullets: [
+        "発酵・飲料・サステナなど自社R&D ドメインに自動絞り込み",
+        "「📈マクロ動向 / 🌱自社の追い風 / ⚠️要注意」の3行サマリーを朝イチでチェック",
+        "気になる記事は 🩷 でいいね、🔖 で保存して後で見返す",
+      ],
+      cta: { label: "ダッシュボードを開く", href: "#/dashboard" },
+    },
+    {
+      n: 2,
+      icon: "bulb",
+      tone: "amber",
+      title: "アイデアに変える",
+      hint: "2クリック",
+      desc: "気になった記事の右下の「アイデアに変える」を押すと、記事と関連シーズが下書きに自動でぶら下がります。ゼロから書く必要はありません。",
+      bullets: [
+        "課題 / 顧客 / ソリューション / 自社の強み — 9項目テンプレを埋めるだけ",
+        "AI からの提案カードから、シーズ × トレンドの掛け合わせ案を直接ドラフト化",
+        "公開前は下書き保存。社内に出すタイミングは自分で決められます",
+      ],
+      cta: { label: "新しいアイデアを書いてみる", href: "#/ideas/new" },
+    },
+    {
+      n: 3,
+      icon: "message",
+      tone: "violet",
+      title: "仲間と磨く",
+      hint: "30秒で1コメント",
+      desc: "提出すると、関係者(R&D・マーケ・事業開発・社外アドバイザー)からスレッドコメントが届きます。受信箱で未読FBをまとめて確認できます。",
+      bullets: [
+        "コメントは役職タグ(exec / advisor / peer)付き — 誰の意見か一目瞭然",
+        "改訂のたびにバージョン履歴が残り、改善ストーリーが追えます",
+        "👍 リアクションで「この論点に賛成」が定量化",
+      ],
+      cta: { label: "受信箱を開く", href: "#/inbox" },
+    },
+    {
+      n: 4,
+      icon: "trophy",
+      tone: "sprout",
+      title: "役員レビュー → 採択",
+      hint: "週次",
+      desc: "3名の役員(CTO・新規事業担当・社外取締役)が承認 / 保留 / 差し戻しを判定。2名以上の承認で「採択」、ポートフォリオ管理に移行します。",
+      bullets: [
+        "判定はノート付き。なぜ承認/保留かが透明",
+        "採択後はマイルストーン・予算消化・次のゲートが自動追跡",
+        "サンプルとして『Sober Wellness』(レビュー中) と『Air Beer』(採択済) を収録",
+      ],
+      cta: { label: "アイデア一覧を見る", href: "#/ideas" },
+    },
+  ];
+
+  const tipBoxes = [
+    { icon:"search", title:"⌘ + K でどこからでも検索", body:"記事・シーズ・アイデアをワンキーで横断検索。ナビゲーションは全部キーボードで完結します。" },
+    { icon:"beaker", title:"自社シーズは10種をプリセット", body:"YAS-17(独自酵母) / Hop-β / CO2-LOOP など、現在R&Dが持つ素材を最初から登録。新シーズを足す画面も用意してあります。" },
+    { icon:"rss",    title:"ニュースソースは自由にカスタマイズ", body:"19 ソース動いていますが、「情報ソース管理」から日経・HBR・業界誌などプリセットを足したり、独自RSSを追加したりできます。" },
+    { icon:"sparkles", title:"AI要約を有効化(任意)", body:"環境変数 ANTHROPIC_API_KEY を設定して再起動すると、上位 20 件が Claude による3行要約に置換されます。" },
+  ];
+
+  const faqs = [
+    { q: "「あなた向け5本」が空っぽです", a: "オンボーディングで関心領域(発酵 / 健康など)と担当シーズを 2-4 個選んだ上で、ニュースが取得されると並び始めます。右上のメニュー → オンボーディングをやり直す、で再設定できます。" },
+    { q: "外部ニュースの取得に失敗します", a: "Pythonの SSL 証明書未セットアップが原因の場合、ターミナルで /Applications/Python\\ 3.13/Install\\ Certificates.command を1回だけ実行してください。" },
+    { q: "担当シーズに新しい技術を追加したい", a: "現在は data.js のシーズ配列に追記する形になっています(将来的にUIから追加可能にする予定)。シーズに紐づくキーワードを server.py の SEED_KEYWORDS に追加すると、ニュース検出にもヒットします。" },
+    { q: "アイデアを社外と共有できますか?", a: "現状はローカル動作の社内デモです。各アイデア詳細ページからコピー可能なテキスト形式でエクスポートできます(共有リンクの発行は次のスコープです)。" },
+    { q: "データはどこに保存されていますか?", a: "アイデア・コメント・お気に入りはブラウザの localStorage(キー: sprout:v1)に。ニュースソース設定は sources.json にサーバ側で保存されます。リセットは設定メニューから可能です。" },
+  ];
+
+  return (
+    <div className="p-6 lg:p-8 space-y-8 max-w-5xl">
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-3xl ring-1 ring-cream-200/70 bg-white">
+        <div className="gradient-hero-accent absolute inset-0 pointer-events-none"/>
+        <div className="relative px-6 lg:px-10 py-8 lg:py-10">
+          <div className="flex items-center gap-2 text-[11.5px] text-ink-500 font-semibold mb-2">
+            <Icon name="logo" className="w-4 h-4"/>
+            <span>SPROUT へようこそ</span>
+          </div>
+          <h1 className="text-[28px] lg:text-[34px] font-extrabold tracking-tight text-ink-900 leading-tight">
+            5分で分かる、<span className="text-asahi-600">SPROUT の使い方</span>
+          </h1>
+          <p className="text-ink-700 mt-3 text-[14px] leading-relaxed max-w-2xl">
+            SPROUT は、世の中のニュースを <b className="text-asahi-600">自社シーズと自動で重ね</b>、
+            <b className="text-ink-900">アイデアに着地させて、仲間と磨いて、採択まで運ぶ</b> ためのツールです。
+            初めての方は下のステップ順に試してみてください。
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button variant="primary" icon="rss" onClick={()=>navigate("#/dashboard")}>今すぐダッシュボードへ</Button>
+            <Button variant="outline" icon="sparkles" onClick={()=>app.resetOnboarding()}>関心設定をやり直す</Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4-step flow */}
+      <section>
+        <div className="text-[11px] tracking-[0.18em] font-bold text-asahi-600 mb-2">4 STEPS</div>
+        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">朝のニュース → アイデア → 採択までの流れ</h2>
+        <div className="space-y-3">
+          {steps.map(s => <StepRow key={s.n} step={s} onCta={(href)=>navigate(href)}/>)}
+        </div>
+      </section>
+
+      {/* Tips */}
+      <section>
+        <div className="text-[11px] tracking-[0.18em] font-bold text-sprout-700 mb-2">TIPS</div>
+        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">知っておくと便利な使い方</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {tipBoxes.map((t,i) => (
+            <Card key={i} className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="h-9 w-9 rounded-lg bg-cream-100 ring-1 ring-cream-200 text-asahi-600 flex items-center justify-center shrink-0">
+                  <Icon name={t.icon} className="w-4 h-4"/>
+                </div>
+                <div>
+                  <div className="font-extrabold text-[13.5px] text-ink-900">{t.title}</div>
+                  <div className="text-[12px] text-ink-600 mt-1 leading-relaxed">{t.body}</div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Glossary */}
+      <section>
+        <div className="text-[11px] tracking-[0.18em] font-bold text-ink-500 mb-2">GLOSSARY</div>
+        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">用語集</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { term:"萌芽", def:"これから市場・社会で広がりそうな小さな兆し。SPROUT では世の中ニュースから検出します。" },
+            { term:"自社シーズ", def:"アサヒが社内に持つ独自技術・素材・ノウハウ。例: YAS-17 高香気酵母、Hop-β 機能性成分、CO2-LOOP 回収プロセス。" },
+            { term:"関連度スコア", def:"記事タイトル・本文と、8つのR&Dドメイン(発酵/飲料/健康/サステナ等)のキーワードがどれだけ重なるかを数値化したもの。" },
+            { term:"採択", def:"3名の役員のうち2名以上が承認した状態。ポートフォリオに加わり、マイルストーン管理に移行します。" },
+            { term:"ライブ記事", source:"server.py", def:"Python サーバが世の中のRSS/ニュースAPIから取得した実データ。LIVEバッジ付きで表示。" },
+            { term:"3行サマリー", def:"記事の重要点を3行に圧縮した要約。ANTHROPIC_API_KEY 設定時は Claude による生成、未設定時は内蔵ヒューリスティックで作成。" },
+          ].map(t => (
+            <div key={t.term} className="p-4 rounded-xl bg-white ring-1 ring-ink-100">
+              <div className="font-extrabold text-[13px] text-asahi-700 mb-1">{t.term}</div>
+              <div className="text-[11.5px] text-ink-600 leading-relaxed">{t.def}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section>
+        <div className="text-[11px] tracking-[0.18em] font-bold text-ink-500 mb-2">FAQ</div>
+        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">よくある質問</h2>
+        <div className="space-y-2">
+          {faqs.map((f, i) => (
+            <details key={i} className="group rounded-xl bg-white ring-1 ring-ink-100 overflow-hidden">
+              <summary className="px-5 py-3.5 cursor-pointer flex items-center gap-3 hover:bg-cream-50">
+                <span className="h-6 w-6 rounded-full bg-asahi-50 text-asahi-700 flex items-center justify-center text-[11.5px] font-extrabold shrink-0">Q</span>
+                <span className="font-bold text-[13px] text-ink-900 flex-1">{f.q}</span>
+                <Icon name="chevron-down" className="w-4 h-4 text-ink-400 transition group-open:rotate-180 shrink-0"/>
+              </summary>
+              <div className="px-5 pb-4 pt-0 flex items-start gap-3">
+                <span className="h-6 w-6 rounded-full bg-sprout-50 text-sprout-700 flex items-center justify-center text-[11.5px] font-extrabold shrink-0 mt-0.5">A</span>
+                <div className="text-[12.5px] text-ink-700 leading-relaxed">{f.a}</div>
+              </div>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <Card className="p-6 lg:p-8 text-center bg-gradient-to-br from-asahi-50 via-white to-sprout-50/50 ring-1 ring-asahi-100">
+        <div className="text-[11px] tracking-[0.18em] font-bold text-asahi-600 mb-2">LET'S GO</div>
+        <h3 className="text-[20px] font-extrabold text-ink-900 mb-2">準備はできました。最初の1本を書いてみよう。</h3>
+        <p className="text-[12.5px] text-ink-600 mb-5 max-w-md mx-auto">気になる記事から始めると、関連シーズとのつながりが自動で下書きに入ります。完璧でなくてOKです。</p>
+        <div className="flex justify-center gap-2 flex-wrap">
+          <Button variant="primary" icon="pencil" onClick={()=>navigate("#/ideas/new")}>新しいアイデアを書く</Button>
+          <Button variant="outline" icon="rss" onClick={()=>navigate("#/dashboard")}>まずはニュースを見る</Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function StepRow({ step, onCta }) {
+  const toneMap = {
+    asahi:  { bg:"bg-asahi-50",  ring:"ring-asahi-200",  text:"text-asahi-700",  iconBg:"bg-asahi-500" },
+    amber:  { bg:"bg-amber-50",  ring:"ring-amber-200",  text:"text-amber-700",  iconBg:"bg-amber-500" },
+    violet: { bg:"bg-violet-50", ring:"ring-violet-200", text:"text-violet-700", iconBg:"bg-violet-500" },
+    sprout: { bg:"bg-sprout-50", ring:"ring-sprout-200", text:"text-sprout-700", iconBg:"bg-sprout-500" },
+  };
+  const t = toneMap[step.tone] || toneMap.asahi;
+  return (
+    <Card className="p-5 lg:p-6">
+      <div className="flex items-start gap-4 lg:gap-6">
+        {/* Number + icon */}
+        <div className="shrink-0 flex flex-col items-center gap-2">
+          <div className={`h-12 w-12 rounded-2xl ${t.iconBg} text-white flex items-center justify-center shadow-sm`}>
+            <Icon name={step.icon} className="w-6 h-6" strokeWidth={2.2}/>
+          </div>
+          <div className={`text-[10.5px] font-extrabold tracking-widest ${t.text}`}>STEP {step.n}</div>
+        </div>
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <h3 className="text-[16.5px] font-extrabold text-ink-900">{step.title}</h3>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${t.bg} ${t.text}`}>
+              <Icon name="clock" className="w-3 h-3"/> {step.hint}
+            </span>
+          </div>
+          <p className="text-[13px] text-ink-700 leading-relaxed mb-3">{step.desc}</p>
+          <ul className="space-y-1.5 mb-4">
+            {step.bullets.map((b, i) => (
+              <li key={i} className="flex items-start gap-2 text-[12.5px] text-ink-700">
+                <Icon name="check" className={`w-4 h-4 ${t.text} shrink-0 mt-0.5`} strokeWidth={2.2}/>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+          <Button variant="outline" onClick={()=>onCta(step.cta.href)}>{step.cta.label} →</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
+//  Main App
+// ---------------------------------------------------------------
+function App() {
+  const app = useStore();
+  const live = useLiveArticles();
+  const { parts } = useHashRoute();
+  const palette = useCommandPalette();
+  // expose globally so Header search input can open it
+  window.__openPalette = () => palette.setOpen(true);
+
+  // Hide loader after first paint
+  useEffect(() => {
+    const l = document.getElementById("loader");
+    if (l) { l.style.opacity = "0"; setTimeout(()=>l.remove(), 400); }
+  }, []);
+
+  let page;
+  const route = parts[0] || "dashboard";
+  const sub = parts[1];
+  if (route === "dashboard") page = <Dashboard/>;
+  else if (route === "seeds") page = <SeedsPage/>;
+  else if (route === "sources") page = <SourcesAdminPage/>;
+  else if (route === "guide" || route === "setup") page = <SetupGuidePage/>;
+  else if (route === "ideas" && sub === "new") page = <IdeaEditor/>;
+  else if (route === "ideas" && sub) page = <IdeaDetailPage id={sub}/>;
+  else if (route === "ideas") page = <IdeasPage/>;
+  else if (route === "inbox") page = <InboxPage/>;
+  else if (route === "me") page = <MePage/>;
+  else page = <Dashboard/>;
+
+  return (
+    <StoreCtx.Provider value={app}>
+      <LiveCtx.Provider value={live}>
+        <Shell>
+          <div className="fade-in" key={window.location.hash}>{page}</div>
+        </Shell>
+        <OnboardingModal/>
+        <CommandPalette open={palette.open} onClose={()=>palette.setOpen(false)} liveArticles={live.articles}/>
+      </LiveCtx.Provider>
+    </StoreCtx.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);

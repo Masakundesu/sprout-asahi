@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sprout",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["server.py"],
+      "cwd": "/Users/masa/asahi-sprout",
+      "port": 4321
+    }
+  ]
+}
