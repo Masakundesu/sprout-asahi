@@ -425,79 +425,43 @@ function Shell({ children }) {
   const unreadFBCount = useUnreadFBCount();
 
   const nav = [
-    { key: "dashboard", label: "ダッシュボード", sub:"萌芽情報",   icon:"rss" },
-    { key: "ideas",     label: "アイデア",       sub:"全員の提案", icon:"bulb" },
-    { key: "seeds",     label: "シーズ",         sub:"自社の技術", icon:"beaker" },
-    { key: "inbox",     label: "受信箱",         sub:"自分宛のFB", icon:"inbox", badge: unreadFBCount },
-    { key: "me",        label: "マイページ",     sub:"自分の活動", icon:"user" },
-  ];
-  const navSettings = [
-    { key: "sources",   label: "情報ソース管理", sub:"RSS / API",  icon:"database" },
-    { key: "guide",     label: "使い方ガイド",   sub:"はじめての方へ", icon:"bulb" },
+    { key: "dashboard", label: "ニュース", icon:"rss" },
+    { key: "ideas",     label: "アイデア", icon:"bulb", badge: unreadFBCount },
+    { key: "seeds",     label: "シーズ",   icon:"beaker" },
   ];
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-ink-200/80 bg-white hidden md:flex flex-col">
-        <div className="px-5 py-5 flex items-center gap-2.5 border-b border-ink-100">
-          <Icon name="logo" className="w-9 h-9" />
-          <div className="leading-tight">
-            <div className="font-extrabold tracking-tight text-[15px] text-ink-900">SPROUT</div>
-            <div className="text-[10px] text-ink-500 tracking-[0.12em] font-semibold mt-0.5">ASAHI R&amp;D IDEATION HUB</div>
-          </div>
+      <aside className="w-56 shrink-0 border-r border-ink-100 bg-white hidden md:flex flex-col">
+        <div className="px-5 py-5 flex items-center gap-2.5">
+          <Icon name="logo" className="w-8 h-8" />
+          <div className="font-extrabold tracking-tight text-[15px] text-ink-900">SPROUT</div>
         </div>
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 px-3 space-y-1">
           {nav.map(n => {
             const active = route === n.key;
             return (
               <a key={n.key} href={`#/${n.key}`}
-                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-lg group transition ${
-                  active ? "bg-gradient-to-r from-asahi-50 to-cream-50 text-asahi-700" : "text-ink-700 hover:bg-cream-50"}`}>
-                {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-asahi-500"/>}
-                <Icon name={n.icon} className={`w-[18px] h-[18px] ${active ? "text-asahi-600" : "text-ink-400 group-hover:text-ink-700"}`} strokeWidth={active ? 2 : 1.75}/>
-                <div className="flex-1 leading-tight">
-                  <div className={`text-[13px] ${active ? "font-bold" : "font-semibold"}`}>{n.label}</div>
-                  <div className={`text-[10.5px] font-medium ${active ? "text-asahi-600/80" : "text-ink-400"}`}>{n.sub}</div>
-                </div>
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg transition ${
+                  active ? "bg-asahi-50 text-asahi-700 font-bold" : "text-ink-600 hover:bg-ink-50 font-medium"}`}>
+                <Icon name={n.icon} className="w-[18px] h-[18px]"/>
+                <span className="text-[13px] flex-1">{n.label}</span>
                 {n.badge > 0 && (
-                  <span className={`text-[10.5px] font-bold px-1.5 h-5 min-w-5 rounded-full flex items-center justify-center shadow-sm ring-2 ring-white ${n.badgeTone === "amber" ? "bg-amber-500 text-white" : "bg-asahi-500 text-white"}`}>
+                  <span className="text-[10.5px] font-bold px-1.5 h-5 min-w-5 rounded-full flex items-center justify-center bg-asahi-500 text-white">
                     {n.badge}
                   </span>
                 )}
               </a>
             );
           })}
-
-          <div className="pt-4 pb-1.5 px-3 text-[10px] tracking-[0.18em] font-bold text-ink-400">QUICK ACTION</div>
-          <button
-            onClick={() => navigate("#/ideas/new")}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-br from-ink-900 to-ink-800 text-white hover:from-asahi-600 hover:to-asahi-500 transition text-[13px] font-bold shadow-sm">
-            <Icon name="pencil" className="w-4 h-4"/> 新しいアイデアを書く
-          </button>
-          <div className="pt-1 px-3 text-[10.5px] text-ink-400 leading-snug">
-            気になる記事から開始すると、自動で背景情報が紐づきます。
+          <div className="pt-3">
+            <button
+              onClick={() => navigate("#/ideas/new")}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 transition text-[13px] font-semibold">
+              <Icon name="plus" className="w-4 h-4"/> アイデアを書く
+            </button>
           </div>
-
-          <div className="pt-4 pb-1.5 px-3 text-[10px] tracking-[0.18em] font-bold text-ink-400">SETTINGS</div>
-          {navSettings.map(n => {
-            const active = route === n.key;
-            return (
-              <a key={n.key} href={`#/${n.key}`}
-                className={`relative flex items-center gap-3 px-3 py-2 rounded-lg group transition ${
-                  active ? "bg-gradient-to-r from-asahi-50 to-cream-50 text-asahi-700" : "text-ink-700 hover:bg-cream-50"}`}>
-                {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-asahi-500"/>}
-                <Icon name={n.icon} className={`w-[16px] h-[16px] ${active ? "text-asahi-600" : "text-ink-400 group-hover:text-ink-700"}`}/>
-                <div className="flex-1 leading-tight">
-                  <div className={`text-[12.5px] ${active ? "font-bold" : "font-semibold"}`}>{n.label}</div>
-                  <div className={`text-[10px] font-medium ${active ? "text-asahi-600/80" : "text-ink-400"}`}>{n.sub}</div>
-                </div>
-              </a>
-            );
-          })}
         </nav>
-        <div className="p-3 border-t border-ink-100 bg-cream-50/50">
-          <DailyStreak />
-        </div>
       </aside>
 
       {/* Main */}
@@ -580,9 +544,13 @@ function Header() {
               <>
                 <div className="fixed inset-0 z-30" onClick={()=>setMenuOpen(false)}/>
                 <div className="absolute right-0 top-11 w-56 bg-white rounded-xl shadow-pop ring-1 ring-ink-200 p-1.5 z-40">
-                  <a href="#/sources" onClick={()=>setMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-ink-50 text-[12.5px] text-ink-700">
-                    <Icon name="database" className="w-4 h-4 text-ink-500"/> ソース管理
+                  <a href="#/guide" onClick={()=>setMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-ink-50 text-[12.5px] text-ink-700">
+                    <Icon name="bulb" className="w-4 h-4 text-ink-500"/> 使い方ガイド
                   </a>
+                  <a href="#/sources" onClick={()=>setMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-ink-50 text-[12.5px] text-ink-700">
+                    <Icon name="database" className="w-4 h-4 text-ink-500"/> 情報ソース管理
+                  </a>
+                  <div className="h-px bg-ink-100 my-1"/>
                   <button onClick={()=>{ app.resetOnboarding(); setMenuOpen(false); window.location.hash="#/dashboard"; }}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-ink-50 text-[12.5px] text-ink-700">
                     <Icon name="sparkles" className="w-4 h-4 text-ink-500"/> オンボーディングをやり直す
@@ -743,255 +711,67 @@ function Dashboard() {
     return out.slice(0, 60); // cap UI
   }, [baseArticles, cat, sort, seedFilter, onlyLive]);
 
-  const suggestions = data.aiSuggestions.filter(s => !app.state.dismissedSuggestions[s.id]);
-  const liveCount = (live.articles || []).length;
-
-  const today = new Date("2026-04-27");
-  const dateLabel = `${today.getMonth()+1}月${today.getDate()}日 (${["日","月","火","水","木","金","土"][today.getDay()]})`;
-
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      {/* Hero — 挨拶 + 今日のサマリー + アクション導線 */}
-      <div className="relative overflow-hidden rounded-2xl ring-1 ring-cream-200/70 bg-white">
-        <div className="gradient-hero-accent absolute inset-0 pointer-events-none"/>
-        <div className="relative px-6 lg:px-8 py-6 flex flex-wrap items-end gap-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-[11.5px] text-ink-500 font-semibold mb-1.5">
-              <span>{dateLabel}</span>
-              <span className="text-ink-300">·</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sprout-50 text-sprout-700 ring-1 ring-sprout-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-sprout-500"/>
-                萌芽探索モード
-              </span>
-            </div>
-            <h1 className="font-extrabold tracking-tight text-[22px] lg:text-[26px] text-ink-900 leading-tight">
-              今朝の<span className="text-asahi-600">萌芽</span>を、自社シーズで眺めよう。
-            </h1>
-            <p className="text-ink-600 mt-1.5 text-[13.5px] leading-relaxed">
-              世の中のニュースから、<b className="text-asahi-600">自社シーズと重なる兆し</b>を集めました。
-              気になる記事を <b className="text-ink-900">2クリックでアイデアに</b> 落とし込めます。
-            </p>
-          </div>
-          <div className="flex items-stretch gap-3">
-            <Kpi label="今朝の新着" value={live.loading ? "…" : baseArticles.length} hint="件" tone="asahi" icon="rss"/>
-            <Kpi label="あなた向け" value={yourFive.length} hint="本" tone="sprout" icon="stars"/>
-          </div>
+    <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-6">
+      {/* Title + meta */}
+      <div>
+        <h1 className="text-[22px] lg:text-[26px] font-extrabold tracking-tight text-ink-900">今朝のニュース</h1>
+        <div className="mt-1.5 flex items-center gap-2 text-[12px] text-ink-500">
+          {live.loading ? (
+            <span className="text-amber-600">取得中…</span>
+          ) : live.error ? (
+            <span className="text-rose-600">取得失敗</span>
+          ) : (
+            <>
+              <span><b className="text-ink-800">{baseArticles.length}</b> 件</span>
+              {yourFive.length > 0 && <><span className="text-ink-300">·</span><span>あなた向け <b className="text-asahi-600">{yourFive.length}</b> 本</span></>}
+              {live.fetchedAt && <><span className="text-ink-300">·</span><span>{live.fetchedAt.replace("T"," ").slice(11,16)} 更新</span></>}
+            </>
+          )}
+          <button onClick={()=>live.refresh(true)} disabled={live.loading}
+            className="ml-2 text-ink-500 hover:text-asahi-600 disabled:opacity-50 transition">
+            <span className={live.loading ? "inline-block animate-spin" : ""}>↻</span>
+          </button>
         </div>
       </div>
 
-      {/* Status bar — 右端に再取得ボタン */}
-      <div className="flex flex-wrap items-center gap-3 px-1">
-        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold ring-1 ${
-          live.loading ? "bg-amber-50 text-amber-700 ring-amber-200" :
-          live.error   ? "bg-rose-50 text-rose-700 ring-rose-200" :
-                         "bg-sprout-50 text-sprout-700 ring-sprout-200"
-        }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${live.loading ? "bg-amber-500 animate-pulse" : live.error ? "bg-rose-500" : "bg-sprout-500"}`}/>
-          {live.loading ? "ニュース取得中…" : live.error ? "取得に失敗しました" : "最新の状態"}
-        </div>
-        {live.fetchedAt && (
-          <span className="text-[11.5px] text-ink-500 inline-flex items-center gap-1">
-            <Icon name="clock" className="w-3.5 h-3.5"/> {live.fetchedAt.replace("T"," ").slice(11,16)} に更新
-          </span>
-        )}
-        <span className="ml-auto"/>
-        <button onClick={()=>live.refresh(true)} disabled={live.loading}
-          className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-[12px] font-semibold text-ink-700 bg-white ring-1 ring-ink-200 hover:bg-cream-50 hover:ring-asahi-300 disabled:opacity-50 transition">
-          <span className={live.loading ? "inline-block animate-spin" : ""}>↻</span> 再取得
-        </button>
-        {live.error && <div className="basis-full text-[11px] text-rose-600 px-1">{live.error}</div>}
-      </div>
-
-      {/* Filters — softer pill design */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[11px] tracking-widest font-bold text-ink-400 mr-1">VIEW</span>
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {data.articleCategories.filter(c => c.key === "all" || ["生活者トレンド","市場統計","海外/先進企業事例"].includes(c.key)).map(c => (
           <Tag key={c.key} active={cat === c.key} onClick={() => setCat(c.key)}>
-            <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1.5 ${c.color || "bg-slate-400"}`}/>
             {c.label || c.key}
           </Tag>
         ))}
         {seedFilter && (
           <button onClick={() => setSeedFilter(null)}
-            className="ml-2 inline-flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-semibold bg-asahi-500 text-white shadow-sm">
-            🧪 {data.seedsById[seedFilter].code} を解除 <Icon name="x" className="w-3.5 h-3.5 ml-1"/>
+            className="ml-1 inline-flex items-center gap-1 px-2.5 h-7 rounded-full text-[11.5px] font-semibold bg-asahi-500 text-white">
+            {data.seedsById[seedFilter].code} <Icon name="x" className="w-3.5 h-3.5"/>
           </button>
         )}
       </div>
 
-      {/* Grid: Feed + Side rails */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        {/* Left: feed */}
-        <div className="xl:col-span-8 space-y-4">
-          {/* Your 5 — personalized */}
-          {yourFive.length > 0 && (
-            <Card className="overflow-hidden ring-1 ring-asahi-200/70 shadow-card">
-              <div className="px-4 pt-4 pb-3 bg-gradient-to-br from-asahi-50 via-cream-50 to-sprout-50/40 border-b border-asahi-100/60">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-asahi-500 to-asahi-600 flex items-center justify-center text-white shadow-sm">
-                    <Icon name="stars" className="w-4 h-4" strokeWidth={2.2}/>
-                  </div>
-                  <div className="font-extrabold text-[14.5px] text-ink-900">あなた向け · 今朝の5本</div>
-                  <Badge tone="red">あなた専用</Badge>
-                  <span className="ml-auto text-[11px] text-ink-500 hidden lg:inline-flex items-center gap-1">
-                    <Icon name="filter" className="w-3 h-3"/>
-                    {(prefs.focusDomains||[]).slice(0,2).join(" · ")}
-                    {prefs.focusSeeds?.length > 0 && " · " + (prefs.focusSeeds||[]).slice(0,2).map(sid => data.seedsById[sid]?.code).join(" / ")}
-                  </span>
-                </div>
-                <div className="text-[11.5px] text-ink-600 mt-1.5 ml-9">
-                  あなたの関心領域・担当シーズと <b className="text-ink-900">最も重なる記事</b> を上から並べています。
-                </div>
-              </div>
-              <div className="p-2 space-y-0.5 bg-white">
-                {yourFive.map((a, i) => (
-                  <a key={a.id} href={a.url || "#"} target={a.url ? "_blank" : undefined} rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-cream-50 transition group">
-                    <span className="font-mono font-extrabold text-asahi-600 text-[12px] w-7 shrink-0 mt-0.5">0{i+1}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                        {a.live && <Badge tone="green">LIVE</Badge>}
-                        <span className="text-[10.5px] font-semibold text-ink-500">{a.source}</span>
-                        <span className="text-[10.5px] text-ink-300">·</span>
-                        <span className="text-[10.5px] text-ink-500">{relTime(a.date)}</span>
-                        {(a.relatedSeeds||[]).slice(0,2).map(sid => <Badge key={sid} tone="red">🧪 {data.seedsById[sid]?.code}</Badge>)}
-                      </div>
-                      <div className="font-bold text-[13px] text-ink-900 line-clamp-2 leading-snug group-hover:text-asahi-700 transition">{a.title}</div>
-                    </div>
-                    {a.url && <Icon name="arrow-up-right" className="w-4 h-4 text-ink-400 mt-1 group-hover:text-asahi-500 transition"/>}
-                  </a>
-                ))}
-              </div>
-            </Card>
-          )}
-
-          {articles.map(a => (
-            <ArticleRow key={a.id} article={a} onPickSeed={(sid) => setSeedFilter(sid)} />
-          ))}
-          {articles.length === 0 && (
-            <Card className="p-8 lg:p-10 text-center bg-white">
-              <div className="mx-auto h-14 w-14 rounded-full bg-cream-100 flex items-center justify-center mb-3">
-                <Icon name="rss" className="w-6 h-6 text-ink-400"/>
-              </div>
-              <div className="font-extrabold text-[15px] text-ink-900 mb-1.5">
-                {live.loading ? "ニュースを取得しています…" : live.error ? "ニュースの取得に失敗しました" : "条件に合う記事がまだありません"}
-              </div>
-              <div className="text-[12.5px] text-ink-500 leading-relaxed max-w-md mx-auto">
-                {live.loading
-                  ? "数秒お待ちください。RSSとニュースAPIから最新情報を集めています。"
-                  : live.error
-                    ? "ネットワーク接続を確認してから「再取得」を押してください。サンプル記事と AI 提案は右側でご覧いただけます。"
-                    : <>カテゴリやシーズ絞り込みを変えるか、<button onClick={()=>{setCat("all");setSeedFilter(null);}} className="text-asahi-600 font-bold underline">フィルタをリセット</button> してみてください。</>}
-              </div>
-              {!live.loading && (
-                <button onClick={()=>live.refresh(true)} className="mt-4 inline-flex items-center gap-1.5 px-4 h-9 rounded-lg text-[12.5px] font-semibold text-white bg-asahi-500 hover:bg-asahi-600 transition shadow-sm">
-                  ↻ 最新ニュースを取得
-                </button>
-              )}
-            </Card>
-          )}
-        </div>
-
-        {/* Right: rails */}
-        <div className="xl:col-span-4 space-y-5">
-          {/* AI suggestions */}
-          <Card className="overflow-hidden">
-            <div className="p-4 pb-3 bg-gradient-to-br from-violet-50 via-white to-asahi-50/30 border-b border-ink-100/70">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-500 to-asahi-500 flex items-center justify-center text-white shadow-sm">
-                  <Icon name="sparkles" className="w-[18px] h-[18px]" strokeWidth={2.2}/>
-                </div>
-                <div className="leading-tight flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <div className="text-[13.5px] font-extrabold text-ink-900">AI からの提案</div>
-                    <Badge tone="violet">AI</Badge>
-                  </div>
-                  <div className="text-[11px] text-ink-500 mt-0.5">自社シーズ × 世の中の動きを掛け合わせ</div>
-                </div>
-              </div>
-            </div>
-            <div className="p-3 space-y-2">
-              {suggestions.slice(0,3).map(s => (
-                <a key={s.id} href={`#/ideas/new?suggestion=${s.id}`}
-                  className="block p-3 rounded-xl ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 hover:shadow-card transition group">
-                  <div className="text-[13px] font-bold text-ink-900 leading-snug line-clamp-2 group-hover:text-asahi-700 transition">{s.title}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {s.fromSeeds.map(id => data.seedsById[id] && <Badge key={id} tone="red">🧪 {data.seedsById[id].code}</Badge>)}
-                    {s.isExample && <Badge tone="slate">例</Badge>}
-                  </div>
-                  <div className="text-[11.5px] text-ink-500 mt-1.5 leading-relaxed line-clamp-2">{s.rationale}</div>
-                  <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-asahi-600 opacity-0 group-hover:opacity-100 transition">
-                    アイデアを書き始める <Icon name="arrow-right" className="w-3.5 h-3.5"/>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </Card>
-
-          {/* Trending seeds */}
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icon name="beaker" className="w-4 h-4 text-asahi-600"/>
-                <div className="text-[13.5px] font-extrabold text-ink-900">注目の自社シーズ</div>
-              </div>
-              <a href="#/seeds" className="text-[11px] font-semibold text-ink-500 hover:text-asahi-600 inline-flex items-center gap-0.5 transition">すべて <Icon name="arrow-right" className="w-3.5 h-3.5"/></a>
-            </div>
-            <div className="space-y-1">
-              {data.seeds.slice(0,4).map(s => (
-                <button key={s.id} onClick={() => setSeedFilter(s.id)} className="w-full text-left p-2.5 rounded-lg hover:bg-cream-50 transition flex items-start gap-3 group">
-                  <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-asahi-50 to-cream-100 ring-1 ring-asahi-200 text-asahi-700 flex items-center justify-center text-[11px] font-extrabold shrink-0 group-hover:from-asahi-100 group-hover:to-asahi-50 transition">
-                    {s.code.split("-")[0]}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[12.5px] font-bold text-ink-900 truncate">{s.name}</div>
-                      <span className="text-[10px] font-bold text-ink-500 tabular-nums">{s.readiness}%</span>
-                    </div>
-                    <div className="text-[10.5px] text-ink-500 truncate">{s.summary}</div>
-                    <div className="mt-1.5 h-1.5 bg-ink-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${s.readiness >= 75 ? "bg-sprout-500" : s.readiness >= 60 ? "bg-asahi-500" : "bg-amber-500"}`} style={{width:`${s.readiness}%`}}/>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 pt-3 border-t border-ink-100 text-[10.5px] text-ink-500 flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sprout-500"/>実用化目前</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-asahi-500"/>検証中</span>
-              <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"/>初期段階</span>
-            </div>
-          </Card>
-
-          {/* Daily digest */}
-          <Card className="overflow-hidden">
-            <div className="p-4 pb-3 border-b border-ink-100/70 bg-gradient-to-br from-amber-50/60 via-white to-cream-50">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-asahi-500 flex items-center justify-center text-white shadow-sm">
-                  <Icon name="sparkles" className="w-[18px] h-[18px]" strokeWidth={2.2}/>
-                </div>
-                <div className="leading-tight">
-                  <div className="text-[13.5px] font-extrabold text-ink-900">今朝の3行サマリー</div>
-                  <div className="text-[11px] text-ink-500 mt-0.5">AIが昨晩のニュースを要約しました</div>
-                </div>
-              </div>
-            </div>
-            <div className="p-4 text-[12.5px] text-ink-700 leading-relaxed space-y-3">
-              <div>
-                <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-0.5">📈 マクロ動向</div>
-                <p>GLP-1普及と Sober Curious が重なり、<b className="text-ink-900">『飲む量の構造変化』</b>が加速。<b className="text-ink-900">少量・高満足・機能性</b> がグローバル共通の萌芽です。</p>
-              </div>
-              <div>
-                <div className="text-[10.5px] tracking-widest font-bold text-sprout-700 mb-0.5">🌱 自社の追い風</div>
-                <p><b className="text-asahi-600">REAL-ZERO</b> と <b className="text-asahi-600">Hop-β</b> の組み合わせが好機。プレミアム・ノンアル<a href="#/ideas/i_soberwellness" className="text-asahi-600 font-bold hover:underline">『Sober Wellness』</a>の仕込みが有望。</p>
-              </div>
-              <div>
-                <div className="text-[10.5px] tracking-widest font-bold text-asahi-600 mb-0.5">⚠️ 要注意</div>
-                <p>FlavorGPT 登場で<b className="text-ink-900">香味設計AIのコモディティ化</b>が早まる見込み。守りに回るより、自社FLAVOR-AIを<a href="#/ideas/i_flavorforge" className="text-asahi-600 font-bold hover:underline">外販で攻める</a>戦略を。</p>
-              </div>
-            </div>
-          </Card>
-        </div>
+      {/* Article list */}
+      <div className="space-y-3">
+        {yourFive.length > 0 && (
+          <div className="text-[11px] tracking-widest font-bold text-asahi-600 pt-2">あなた向け</div>
+        )}
+        {yourFive.map(a => (
+          <ArticleRow key={"f_"+a.id} article={a} onPickSeed={(sid) => setSeedFilter(sid)} />
+        ))}
+        {yourFive.length > 0 && articles.length > 0 && (
+          <div className="text-[11px] tracking-widest font-bold text-ink-400 pt-4">すべての記事</div>
+        )}
+        {articles.filter(a => !yourFive.some(y => y.id === a.id)).map(a => (
+          <ArticleRow key={a.id} article={a} onPickSeed={(sid) => setSeedFilter(sid)} />
+        ))}
+        {articles.length === 0 && yourFive.length === 0 && (
+          <div className="py-16 text-center text-ink-500">
+            <div className="text-[13px] mb-3">{live.loading ? "ニュースを取得しています…" : live.error ? "取得に失敗しました" : "条件に合う記事がありません"}</div>
+            {!live.loading && (
+              <button onClick={()=>live.refresh(true)} className="text-asahi-600 hover:text-asahi-700 font-semibold text-[12.5px]">↻ もう一度取得</button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1025,92 +805,60 @@ function Kpi({ label, value, hint, tone = "asahi", icon }) {
 function ArticleRow({ article, onPickSeed }) {
   const data = window.SPROUT_DATA;
   const app = useApp();
-  const { navigate } = useHashRoute();
-  const liked = !!app.state.likedArticles[article.id];
   const saved = !!app.state.savedArticles[article.id];
 
-  const catTone = { "市場統計":"blue", "生活者トレンド":"red", "海外/先進企業事例":"green", "事業アイデア例":"amber" }[article.category] || "slate";
+  const catColor = { "市場統計":"bg-sky-500", "生活者トレンド":"bg-rose-500", "海外/先進企業事例":"bg-emerald-500", "事業アイデア例":"bg-amber-500" }[article.category] || "bg-slate-400";
 
   return (
-    <Card className="p-5 hover:shadow-pop transition group">
-      <div className="flex items-start gap-4">
-        <div className="flex flex-col items-center gap-1 pt-0.5">
-          <button onClick={() => app.toggleArticleLike(article.id)} title="いいね"
-            className={`h-9 w-9 rounded-lg flex items-center justify-center transition ${liked ? "bg-asahi-50 text-asahi-600" : "text-ink-400 hover:bg-ink-50 hover:text-ink-900"}`}>
-            <Icon name={liked ? "heart-fill":"heart"} className="w-[18px] h-[18px]"/>
-          </button>
-          <button onClick={() => app.toggleArticleSave(article.id)} title="保存"
-            className={`h-9 w-9 rounded-lg flex items-center justify-center transition ${saved ? "bg-amber-50 text-amber-600" : "text-ink-400 hover:bg-ink-50 hover:text-ink-900"}`}>
-            <Icon name={saved ? "bookmark-fill":"bookmark"} className="w-[18px] h-[18px]"/>
-          </button>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center flex-wrap gap-2 text-[11px] text-ink-500">
-            <Badge tone={catTone}>{article.category}</Badge>
-            {article.trending && <Badge tone="red"><Icon name="fire" className="w-3 h-3"/> 注目</Badge>}
-            {article.summaryMode === "llm" && <Badge tone="violet">✨ AI要約</Badge>}
-            <span className="font-semibold text-ink-700">{article.source}</span>
-            <span className="text-ink-300">·</span>
-            <span>{article.lang}</span>
-            <span className="ml-auto text-ink-400 flex items-center gap-1"><Icon name="clock" className="w-3.5 h-3.5"/> {relTime(article.date)}</span>
-          </div>
-          <h3 className="mt-1.5 font-extrabold text-[16.5px] leading-snug text-ink-900 group-hover:text-asahi-700 transition">
-            {article.url
-              ? <a href={article.url} target="_blank" rel="noopener noreferrer" className="hover:underline">{article.title}</a>
-              : article.title}
-          </h3>
-
-          <ul className="mt-2 space-y-1 text-[12.5px] text-ink-700 leading-relaxed">
-            {article.summary.map((s,i) => (
-              <li key={i} className="flex gap-2"><span className="mt-1.5 block h-1 w-1 rounded-full bg-asahi-500 shrink-0"/><span>{s}</span></li>
-            ))}
-          </ul>
-
-          {article.tags && (
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {article.tags.map(t => <span key={t} className="text-[10.5px] font-semibold text-ink-500 bg-ink-100 px-2 py-0.5 rounded-full">#{t}</span>)}
-            </div>
-          )}
-
-          {/* Seed match */}
-          {article.relatedSeeds && article.relatedSeeds.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-dashed border-ink-200">
-              <div className="text-[10.5px] tracking-wider font-bold text-ink-400 uppercase flex items-center gap-1 mb-1.5">
-                <Icon name="beaker" className="w-3.5 h-3.5"/> 自社シーズとの関連
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {article.relatedSeeds.map(sid => {
-                  const s = data.seedsById[sid];
-                  const matchScore = 72 + ((sid.length * 7) % 22);
-                  return (
-                    <button key={sid} onClick={() => onPickSeed(sid)} className="inline-flex items-center gap-1.5 pl-2 pr-2.5 py-1 rounded-full bg-asahi-50 text-asahi-700 ring-1 ring-asahi-200 hover:bg-asahi-100 transition">
-                      <span className="text-[11px] font-extrabold">{s.code}</span>
-                      <span className="text-[11px] font-semibold">{s.name}</span>
-                      <span className="text-[10px] text-asahi-500">·{matchScore}%</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[11px] text-ink-500">
-              {article.live
-                ? (article.url && <a href={article.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-ink-600 hover:text-asahi-600 truncate max-w-[320px]"><Icon name="link" className="w-3.5 h-3.5"/>{(new URL(article.url)).hostname.replace(/^www\./,"")}</a>)
-                : (<><span className="inline-flex items-center gap-1"><Icon name="message" className="w-3.5 h-3.5"/> 12 件のコメント</span><span>·</span><span className="inline-flex items-center gap-1"><Icon name="eye" className="w-3.5 h-3.5"/> 社内 38 名が保存</span></>)}
-            </div>
-            <div className="flex items-center gap-2">
-              {article.url && <Button size="sm" variant="ghost" icon="arrow-up-right" onClick={()=>window.open(article.url,"_blank","noopener")}>原文を読む</Button>}
-              <Button size="sm" variant="dark" icon="bulb" onClick={() => {
-                const url = `#/ideas/new?article=${article.id}`;
-                window.location.hash = url;
-              }}>アイデアに変える</Button>
-            </div>
-          </div>
-        </div>
+    <article className="group py-4 border-b border-ink-100 last:border-0">
+      {/* Meta row */}
+      <div className="flex items-center gap-2 text-[11.5px] text-ink-500 mb-1.5">
+        <span className={`w-1.5 h-1.5 rounded-full ${catColor}`}/>
+        <span>{article.category}</span>
+        <span className="text-ink-300">·</span>
+        <span>{article.source}</span>
+        <span className="text-ink-300">·</span>
+        <span>{relTime(article.date)}</span>
       </div>
-    </Card>
+
+      {/* Title */}
+      <h3 className="font-bold text-[15.5px] leading-snug text-ink-900 group-hover:text-asahi-700 transition">
+        {article.url
+          ? <a href={article.url} target="_blank" rel="noopener noreferrer">{article.title}</a>
+          : article.title}
+      </h3>
+
+      {/* Summary */}
+      <ul className="mt-2 space-y-1 text-[12.5px] text-ink-600 leading-relaxed">
+        {article.summary.slice(0, 3).map((s,i) => (
+          <li key={i} className="flex gap-2"><span className="mt-1.5 block h-1 w-1 rounded-full bg-ink-300 shrink-0"/><span>{s}</span></li>
+        ))}
+      </ul>
+
+      {/* Seed pills + actions */}
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        {(article.relatedSeeds || []).slice(0,3).map(sid => {
+          const s = data.seedsById[sid];
+          if (!s) return null;
+          return (
+            <button key={sid} onClick={() => onPickSeed(sid)}
+              className="inline-flex items-center gap-1 px-2 h-6 rounded-full bg-asahi-50 text-asahi-700 hover:bg-asahi-100 text-[11px] font-semibold transition">
+              {s.code}
+            </button>
+          );
+        })}
+        <span className="ml-auto"/>
+        <button onClick={() => app.toggleArticleSave(article.id)}
+          className={`h-7 w-7 rounded-lg flex items-center justify-center transition ${saved ? "text-amber-500" : "text-ink-300 hover:text-ink-600"}`}
+          title="保存">
+          <Icon name={saved ? "bookmark-fill":"bookmark"} className="w-4 h-4"/>
+        </button>
+        <button onClick={() => { window.location.hash = `#/ideas/new?article=${article.id}`; }}
+          className="inline-flex items-center gap-1 px-3 h-7 rounded-full bg-ink-900 text-white hover:bg-asahi-600 text-[11.5px] font-semibold transition">
+          <Icon name="bulb" className="w-3.5 h-3.5"/> アイデアにする
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -1209,68 +957,106 @@ function SeedCard({ seed }) {
 function IdeasPage() {
   const data = window.SPROUT_DATA;
   const app = useApp();
+  const { parts } = useHashRoute();
+  const [tab, setTab] = useState("all"); // all | mine | inbox
   const [status, setStatus] = useState("all");
-  const [sort, setSort] = useState("new");
-  const [scope, setScope] = useState("all");
 
   const all = allIdeas(data, app);
-  let ideas = all.slice();
+  const myIdeas = all.filter(i => i.author === data.me.id);
+  const inboxFbs = allFeedback(data, app)
+    .filter(f => myIdeas.some(i => i.id === f.ideaId) && f.author !== data.me.id)
+    .sort((a,b) => (b.at||"").localeCompare(a.at||""));
+  const unreadInbox = inboxFbs.filter(f => !app.state.readFeedback[f.id]).length;
+
+  let ideas = tab === "mine" ? myIdeas.slice() : all.slice();
   if (status !== "all") ideas = ideas.filter(i => i.status === status);
-  if (scope === "mine") ideas = ideas.filter(i => i.author === data.me.id);
-  if (scope === "liked") ideas = ideas.filter(i => (app.state.ideaLikedBy[i.id] || []).includes(data.me.id));
-  ideas.sort((a,b) => {
-    if (sort === "likes") return (app.state.ideaLikes[b.id]||0) - (app.state.ideaLikes[a.id]||0);
-    if (sort === "activity") return b.updatedAt.localeCompare(a.updatedAt);
-    return b.createdAt.localeCompare(a.createdAt);
-  });
+  ideas.sort((a,b) => b.updatedAt.localeCompare(a.updatedAt));
 
   const statuses = ["all", "ドラフト", "提出済", "役員レビュー中", "採択"];
 
-  const realCount = all.filter(i => !i.isExample).length;
-  const exampleCount = all.filter(i => i.isExample).length;
-
   return (
-    <div className="p-6 lg:p-8 space-y-6">
+    <div className="p-6 lg:p-10 max-w-5xl mx-auto space-y-6">
+      {/* Title + tabs + action */}
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <div className="text-[11.5px] tracking-widest font-bold text-asahi-600 mb-1">IDEA GALLERY</div>
-          <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">新規事業アイデア</h1>
-          <p className="text-ink-600 text-[13.5px] mt-1">全員のアイデアを並べて、いいね / コメント / 参考にする。<b>出した数が価値です。</b></p>
+          <h1 className="text-[22px] lg:text-[26px] font-extrabold tracking-tight text-ink-900">アイデア</h1>
         </div>
-        <Button size="lg" icon="plus" onClick={() => window.location.hash = "#/ideas/new"}>アイデアを書く</Button>
+        <button onClick={() => window.location.hash = "#/ideas/new"}
+          className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-semibold transition">
+          <Icon name="plus" className="w-4 h-4"/> 新規作成
+        </button>
       </div>
 
-      {/* 0-start welcome banner */}
-      {realCount === 0 && (
-        <Card className="p-4 bg-gradient-to-br from-asahi-50/60 to-amber-50/60 border-2 border-asahi-200 flex items-center gap-3 flex-wrap">
-          <div className="h-9 w-9 rounded-xl bg-asahi-500 text-white flex items-center justify-center shrink-0">
-            <Icon name="sparkles" className="w-4 h-4"/>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-extrabold text-[14px] text-ink-900">最初のアイデアを書いてみましょう</div>
-            <p className="text-[12px] text-ink-600 mt-0.5">下の <b>{exampleCount} 件はサンプル例</b>（紫枠）— 採択／レビュー中の典型を見せています。</p>
-          </div>
-          <Button size="sm" icon="plus" onClick={() => window.location.hash = "#/ideas/new"}>新規作成</Button>
-          <Button size="sm" variant="outline" icon="rss" onClick={() => window.location.hash = "#/dashboard"}>萌芽を見る</Button>
-        </Card>
+      {/* Tabs */}
+      <div className="border-b border-ink-100 flex items-center gap-1">
+        {[
+          { k:"all",   label:"すべて",       count: all.length },
+          { k:"mine",  label:"自分のアイデア", count: myIdeas.length },
+          { k:"inbox", label:"受信箱",       count: unreadInbox, badge: true },
+        ].map(t => (
+          <button key={t.k} onClick={()=>setTab(t.k)}
+            className={`relative px-4 py-2.5 text-[13px] transition ${
+              tab === t.k ? "text-asahi-700 font-bold" : "text-ink-500 hover:text-ink-800 font-medium"
+            }`}>
+            {t.label}
+            {t.count > 0 && (
+              <span className={`ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[10.5px] font-bold ${
+                t.badge && tab !== t.k ? "bg-asahi-500 text-white" : "bg-ink-100 text-ink-600"
+              }`}>{t.count}</span>
+            )}
+            {tab === t.k && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-asahi-500"/>}
+          </button>
+        ))}
+      </div>
+
+      {/* Inbox tab content */}
+      {tab === "inbox" && (
+        <div className="space-y-2">
+          {inboxFbs.map(f => {
+            const idea = data.ideasById[f.ideaId] || allIdeas(data, app).find(x=>x.id===f.ideaId);
+            const u = data.usersById[f.author];
+            return (
+              <a key={f.id} href={`#/ideas/${f.ideaId}`} onClick={()=>app.markFeedbackRead(f.id)}
+                className="block p-4 rounded-xl bg-white ring-1 ring-ink-100 hover:ring-asahi-200 hover:bg-cream-50/40 transition">
+                <div className="flex items-start gap-3">
+                  <Avatar user={u}/>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-[12px]">
+                      <span className="font-bold text-ink-900">{u?.name}</span>
+                      <span className="text-ink-400">·</span>
+                      <span className="text-ink-500">{ {exec:"役員", investor:"投資家", advisor:"アドバイザー", peer:"仲間"}[f.role] || f.role }</span>
+                      <span className="text-ink-400 ml-auto text-[11px]">{f.at}</span>
+                    </div>
+                    <div className="text-[11.5px] text-asahi-600 font-semibold mt-1">#{idea?.codename}</div>
+                    <div className="text-[13px] text-ink-700 leading-relaxed mt-1.5 line-clamp-2">{f.text}</div>
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+          {inboxFbs.length === 0 && (
+            <div className="py-16 text-center text-ink-500 text-[13px]">まだコメントは届いていません。</div>
+          )}
+        </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {statuses.map(s => <Tag key={s} active={status===s} onClick={() => setStatus(s)}>{s==="all"?"すべて":s}</Tag>)}
-        <div className="mx-1 h-5 w-px bg-ink-200"/>
-        <Tag active={scope==="all"} onClick={()=>setScope("all")}>全員</Tag>
-        <Tag active={scope==="mine"} onClick={()=>setScope("mine")}>自分</Tag>
-        <Tag active={scope==="liked"} onClick={()=>setScope("liked")}>♥ いいねした</Tag>
-        <div className="mx-1 h-5 w-px bg-ink-200"/>
-        <Tag active={sort==="new"}      onClick={()=>setSort("new")}>新着</Tag>
-        <Tag active={sort==="likes"}    onClick={()=>setSort("likes")}>いいね</Tag>
-        <Tag active={sort==="activity"} onClick={()=>setSort("activity")}>アクティビティ</Tag>
-      </div>
+      {/* All / Mine tab content */}
+      {tab !== "inbox" && (
+        <>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {statuses.map(s => <Tag key={s} active={status===s} onClick={() => setStatus(s)}>{s==="all"?"すべて":s}</Tag>)}
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-5">
-        {ideas.map(i => <IdeaCard key={i.id} idea={i}/>)}
-        {ideas.length === 0 && <Card className="col-span-full p-10 text-center text-ink-500">該当するアイデアはありません。</Card>}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {ideas.map(i => <IdeaCard key={i.id} idea={i}/>)}
+            {ideas.length === 0 && (
+              <div className="col-span-full py-16 text-center text-ink-500 text-[13px]">
+                {tab === "mine" ? "まだアイデアを書いていません。" : "該当するアイデアはありません。"}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -3026,234 +2812,42 @@ function PresetPickerModal({ open, presets, existing, onPick, onClose }) {
 //  Setup Guide (初見ユーザー向け使い方)
 // ---------------------------------------------------------------
 function SetupGuidePage() {
-  const data = window.SPROUT_DATA;
-  const app = useApp();
   const { navigate } = useHashRoute();
 
   const steps = [
-    {
-      n: 1,
-      icon: "rss",
-      tone: "asahi",
-      title: "ニュースを浴びる",
-      hint: "毎朝3分",
-      desc: "ダッシュボードを開くと、世の中の動きを 19 のRSS/ニュース API から自動収集して表示します。「あなた向け5本」に、あなたの担当シーズと最も重なる記事が並びます。",
-      bullets: [
-        "発酵・飲料・サステナなど自社R&D ドメインに自動絞り込み",
-        "「📈マクロ動向 / 🌱自社の追い風 / ⚠️要注意」の3行サマリーを朝イチでチェック",
-        "気になる記事は 🩷 でいいね、🔖 で保存して後で見返す",
-      ],
-      cta: { label: "ダッシュボードを開く", href: "#/dashboard" },
-    },
-    {
-      n: 2,
-      icon: "bulb",
-      tone: "amber",
-      title: "アイデアに変える",
-      hint: "2クリック",
-      desc: "気になった記事の右下の「アイデアに変える」を押すと、記事と関連シーズが下書きに自動でぶら下がります。ゼロから書く必要はありません。",
-      bullets: [
-        "課題 / 顧客 / ソリューション / 自社の強み — 9項目テンプレを埋めるだけ",
-        "AI からの提案カードから、シーズ × トレンドの掛け合わせ案を直接ドラフト化",
-        "公開前は下書き保存。社内に出すタイミングは自分で決められます",
-      ],
-      cta: { label: "新しいアイデアを書いてみる", href: "#/ideas/new" },
-    },
-    {
-      n: 3,
-      icon: "message",
-      tone: "violet",
-      title: "仲間と磨く",
-      hint: "30秒で1コメント",
-      desc: "提出すると、関係者(R&D・マーケ・事業開発・社外アドバイザー)からスレッドコメントが届きます。受信箱で未読FBをまとめて確認できます。",
-      bullets: [
-        "コメントは役職タグ(exec / advisor / peer)付き — 誰の意見か一目瞭然",
-        "改訂のたびにバージョン履歴が残り、改善ストーリーが追えます",
-        "👍 リアクションで「この論点に賛成」が定量化",
-      ],
-      cta: { label: "受信箱を開く", href: "#/inbox" },
-    },
-    {
-      n: 4,
-      icon: "trophy",
-      tone: "sprout",
-      title: "役員レビュー → 採択",
-      hint: "週次",
-      desc: "3名の役員(CTO・新規事業担当・社外取締役)が承認 / 保留 / 差し戻しを判定。2名以上の承認で「採択」、ポートフォリオ管理に移行します。",
-      bullets: [
-        "判定はノート付き。なぜ承認/保留かが透明",
-        "採択後はマイルストーン・予算消化・次のゲートが自動追跡",
-        "サンプルとして『Sober Wellness』(レビュー中) と『Air Beer』(採択済) を収録",
-      ],
-      cta: { label: "アイデア一覧を見る", href: "#/ideas" },
-    },
-  ];
-
-  const tipBoxes = [
-    { icon:"search", title:"⌘ + K でどこからでも検索", body:"記事・シーズ・アイデアをワンキーで横断検索。ナビゲーションは全部キーボードで完結します。" },
-    { icon:"beaker", title:"自社シーズは10種をプリセット", body:"YAS-17(独自酵母) / Hop-β / CO2-LOOP など、現在R&Dが持つ素材を最初から登録。新シーズを足す画面も用意してあります。" },
-    { icon:"rss",    title:"ニュースソースは自由にカスタマイズ", body:"19 ソース動いていますが、「情報ソース管理」から日経・HBR・業界誌などプリセットを足したり、独自RSSを追加したりできます。" },
-    { icon:"sparkles", title:"AI要約を有効化(任意)", body:"環境変数 ANTHROPIC_API_KEY を設定して再起動すると、上位 20 件が Claude による3行要約に置換されます。" },
-  ];
-
-  const faqs = [
-    { q: "「あなた向け5本」が空っぽです", a: "オンボーディングで関心領域(発酵 / 健康など)と担当シーズを 2-4 個選んだ上で、ニュースが取得されると並び始めます。右上のメニュー → オンボーディングをやり直す、で再設定できます。" },
-    { q: "外部ニュースの取得に失敗します", a: "Pythonの SSL 証明書未セットアップが原因の場合、ターミナルで /Applications/Python\\ 3.13/Install\\ Certificates.command を1回だけ実行してください。" },
-    { q: "担当シーズに新しい技術を追加したい", a: "現在は data.js のシーズ配列に追記する形になっています(将来的にUIから追加可能にする予定)。シーズに紐づくキーワードを server.py の SEED_KEYWORDS に追加すると、ニュース検出にもヒットします。" },
-    { q: "アイデアを社外と共有できますか?", a: "現状はローカル動作の社内デモです。各アイデア詳細ページからコピー可能なテキスト形式でエクスポートできます(共有リンクの発行は次のスコープです)。" },
-    { q: "データはどこに保存されていますか?", a: "アイデア・コメント・お気に入りはブラウザの localStorage(キー: sprout:v1)に。ニュースソース設定は sources.json にサーバ側で保存されます。リセットは設定メニューから可能です。" },
+    { n:1, icon:"rss",     title:"ニュースを浴びる",     desc:"19のニュースソースから、自社R&Dに関連する記事を毎日自動収集します。「あなた向け」枠に、担当シーズと重なる記事が並びます。", cta:{ label:"ニュースを開く", href:"#/dashboard" } },
+    { n:2, icon:"bulb",    title:"アイデアに変える",     desc:"気になる記事の「アイデアにする」を押すと、その記事と関連シーズが下書きに自動でぶら下がります。9項目のテンプレを埋めるだけ。", cta:{ label:"アイデアを書く", href:"#/ideas/new" } },
+    { n:3, icon:"message", title:"仲間と磨く",           desc:"提出すると関係者からコメントが届きます。役職タグ(exec / advisor / peer)付きなので、誰の意見か一目瞭然。改訂のたびに履歴が残ります。", cta:{ label:"アイデア一覧へ", href:"#/ideas" } },
+    { n:4, icon:"trophy",  title:"役員レビュー → 採択",  desc:"3名の役員が判定し、2名以上の承認で「採択」。マイルストーン・予算消化が自動追跡されます。", cta:{ label:"サンプルを見る", href:"#/ideas" } },
   ];
 
   return (
-    <div className="p-6 lg:p-8 space-y-8 max-w-5xl">
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl ring-1 ring-cream-200/70 bg-white">
-        <div className="gradient-hero-accent absolute inset-0 pointer-events-none"/>
-        <div className="relative px-6 lg:px-10 py-8 lg:py-10">
-          <div className="flex items-center gap-2 text-[11.5px] text-ink-500 font-semibold mb-2">
-            <Icon name="logo" className="w-4 h-4"/>
-            <span>SPROUT へようこそ</span>
-          </div>
-          <h1 className="text-[28px] lg:text-[34px] font-extrabold tracking-tight text-ink-900 leading-tight">
-            5分で分かる、<span className="text-asahi-600">SPROUT の使い方</span>
-          </h1>
-          <p className="text-ink-700 mt-3 text-[14px] leading-relaxed max-w-2xl">
-            SPROUT は、世の中のニュースを <b className="text-asahi-600">自社シーズと自動で重ね</b>、
-            <b className="text-ink-900">アイデアに着地させて、仲間と磨いて、採択まで運ぶ</b> ためのツールです。
-            初めての方は下のステップ順に試してみてください。
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button variant="primary" icon="rss" onClick={()=>navigate("#/dashboard")}>今すぐダッシュボードへ</Button>
-            <Button variant="outline" icon="sparkles" onClick={()=>app.resetOnboarding()}>関心設定をやり直す</Button>
-          </div>
-        </div>
+    <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-8">
+      {/* Title */}
+      <div>
+        <h1 className="text-[24px] font-extrabold tracking-tight text-ink-900">使い方</h1>
+        <p className="text-ink-500 text-[13px] mt-1.5">SPROUT の使い方を 4 ステップで。</p>
       </div>
 
-      {/* 4-step flow */}
-      <section>
-        <div className="text-[11px] tracking-[0.18em] font-bold text-asahi-600 mb-2">4 STEPS</div>
-        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">朝のニュース → アイデア → 採択までの流れ</h2>
-        <div className="space-y-3">
-          {steps.map(s => <StepRow key={s.n} step={s} onCta={(href)=>navigate(href)}/>)}
-        </div>
-      </section>
-
-      {/* Tips */}
-      <section>
-        <div className="text-[11px] tracking-[0.18em] font-bold text-sprout-700 mb-2">TIPS</div>
-        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">知っておくと便利な使い方</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {tipBoxes.map((t,i) => (
-            <Card key={i} className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 rounded-lg bg-cream-100 ring-1 ring-cream-200 text-asahi-600 flex items-center justify-center shrink-0">
-                  <Icon name={t.icon} className="w-4 h-4"/>
-                </div>
-                <div>
-                  <div className="font-extrabold text-[13.5px] text-ink-900">{t.title}</div>
-                  <div className="text-[12px] text-ink-600 mt-1 leading-relaxed">{t.body}</div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      {/* Glossary */}
-      <section>
-        <div className="text-[11px] tracking-[0.18em] font-bold text-ink-500 mb-2">GLOSSARY</div>
-        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">用語集</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[
-            { term:"萌芽", def:"これから市場・社会で広がりそうな小さな兆し。SPROUT では世の中ニュースから検出します。" },
-            { term:"自社シーズ", def:"アサヒが社内に持つ独自技術・素材・ノウハウ。例: YAS-17 高香気酵母、Hop-β 機能性成分、CO2-LOOP 回収プロセス。" },
-            { term:"関連度スコア", def:"記事タイトル・本文と、8つのR&Dドメイン(発酵/飲料/健康/サステナ等)のキーワードがどれだけ重なるかを数値化したもの。" },
-            { term:"採択", def:"3名の役員のうち2名以上が承認した状態。ポートフォリオに加わり、マイルストーン管理に移行します。" },
-            { term:"ライブ記事", source:"server.py", def:"Python サーバが世の中のRSS/ニュースAPIから取得した実データ。LIVEバッジ付きで表示。" },
-            { term:"3行サマリー", def:"記事の重要点を3行に圧縮した要約。ANTHROPIC_API_KEY 設定時は Claude による生成、未設定時は内蔵ヒューリスティックで作成。" },
-          ].map(t => (
-            <div key={t.term} className="p-4 rounded-xl bg-white ring-1 ring-ink-100">
-              <div className="font-extrabold text-[13px] text-asahi-700 mb-1">{t.term}</div>
-              <div className="text-[11.5px] text-ink-600 leading-relaxed">{t.def}</div>
+      {/* Steps */}
+      <div className="space-y-3">
+        {steps.map(s => (
+          <div key={s.n} className="flex items-start gap-4 p-5 rounded-xl bg-white ring-1 ring-ink-100">
+            <div className="shrink-0 h-10 w-10 rounded-lg bg-asahi-50 text-asahi-600 flex items-center justify-center font-extrabold text-[14px]">
+              {s.n}
             </div>
-          ))}
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section>
-        <div className="text-[11px] tracking-[0.18em] font-bold text-ink-500 mb-2">FAQ</div>
-        <h2 className="text-[20px] font-extrabold text-ink-900 mb-5">よくある質問</h2>
-        <div className="space-y-2">
-          {faqs.map((f, i) => (
-            <details key={i} className="group rounded-xl bg-white ring-1 ring-ink-100 overflow-hidden">
-              <summary className="px-5 py-3.5 cursor-pointer flex items-center gap-3 hover:bg-cream-50">
-                <span className="h-6 w-6 rounded-full bg-asahi-50 text-asahi-700 flex items-center justify-center text-[11.5px] font-extrabold shrink-0">Q</span>
-                <span className="font-bold text-[13px] text-ink-900 flex-1">{f.q}</span>
-                <Icon name="chevron-down" className="w-4 h-4 text-ink-400 transition group-open:rotate-180 shrink-0"/>
-              </summary>
-              <div className="px-5 pb-4 pt-0 flex items-start gap-3">
-                <span className="h-6 w-6 rounded-full bg-sprout-50 text-sprout-700 flex items-center justify-center text-[11.5px] font-extrabold shrink-0 mt-0.5">A</span>
-                <div className="text-[12.5px] text-ink-700 leading-relaxed">{f.a}</div>
-              </div>
-            </details>
-          ))}
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <Card className="p-6 lg:p-8 text-center bg-gradient-to-br from-asahi-50 via-white to-sprout-50/50 ring-1 ring-asahi-100">
-        <div className="text-[11px] tracking-[0.18em] font-bold text-asahi-600 mb-2">LET'S GO</div>
-        <h3 className="text-[20px] font-extrabold text-ink-900 mb-2">準備はできました。最初の1本を書いてみよう。</h3>
-        <p className="text-[12.5px] text-ink-600 mb-5 max-w-md mx-auto">気になる記事から始めると、関連シーズとのつながりが自動で下書きに入ります。完璧でなくてOKです。</p>
-        <div className="flex justify-center gap-2 flex-wrap">
-          <Button variant="primary" icon="pencil" onClick={()=>navigate("#/ideas/new")}>新しいアイデアを書く</Button>
-          <Button variant="outline" icon="rss" onClick={()=>navigate("#/dashboard")}>まずはニュースを見る</Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function StepRow({ step, onCta }) {
-  const toneMap = {
-    asahi:  { bg:"bg-asahi-50",  ring:"ring-asahi-200",  text:"text-asahi-700",  iconBg:"bg-asahi-500" },
-    amber:  { bg:"bg-amber-50",  ring:"ring-amber-200",  text:"text-amber-700",  iconBg:"bg-amber-500" },
-    violet: { bg:"bg-violet-50", ring:"ring-violet-200", text:"text-violet-700", iconBg:"bg-violet-500" },
-    sprout: { bg:"bg-sprout-50", ring:"ring-sprout-200", text:"text-sprout-700", iconBg:"bg-sprout-500" },
-  };
-  const t = toneMap[step.tone] || toneMap.asahi;
-  return (
-    <Card className="p-5 lg:p-6">
-      <div className="flex items-start gap-4 lg:gap-6">
-        {/* Number + icon */}
-        <div className="shrink-0 flex flex-col items-center gap-2">
-          <div className={`h-12 w-12 rounded-2xl ${t.iconBg} text-white flex items-center justify-center shadow-sm`}>
-            <Icon name={step.icon} className="w-6 h-6" strokeWidth={2.2}/>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-[15px] text-ink-900">{s.title}</h3>
+              <p className="text-[12.5px] text-ink-600 mt-1 leading-relaxed">{s.desc}</p>
+              <button onClick={()=>navigate(s.cta.href)}
+                className="mt-3 text-[12px] font-semibold text-asahi-600 hover:text-asahi-700">
+                {s.cta.label} →
+              </button>
+            </div>
           </div>
-          <div className={`text-[10.5px] font-extrabold tracking-widest ${t.text}`}>STEP {step.n}</div>
-        </div>
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h3 className="text-[16.5px] font-extrabold text-ink-900">{step.title}</h3>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${t.bg} ${t.text}`}>
-              <Icon name="clock" className="w-3 h-3"/> {step.hint}
-            </span>
-          </div>
-          <p className="text-[13px] text-ink-700 leading-relaxed mb-3">{step.desc}</p>
-          <ul className="space-y-1.5 mb-4">
-            {step.bullets.map((b, i) => (
-              <li key={i} className="flex items-start gap-2 text-[12.5px] text-ink-700">
-                <Icon name="check" className={`w-4 h-4 ${t.text} shrink-0 mt-0.5`} strokeWidth={2.2}/>
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-          <Button variant="outline" onClick={()=>onCta(step.cta.href)}>{step.cta.label} →</Button>
-        </div>
+        ))}
       </div>
-    </Card>
+    </div>
   );
 }
 
