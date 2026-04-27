@@ -1,0 +1,29 @@
+name: Keep Render alive
+
+# Render free-tier instances sleep after 15 minutes of inactivity.
+# This workflow pings the API every 10 minutes so the demo URL stays
+# instantly responsive for visitors.
+#
+# Why 10 min and not 14? GitHub Actions cron can be delayed up to
+# ~15 min during peak load. */10 gives enough buffer to stay under
+# Render's 15-min idle timeout even when Actions is slow.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:        # allow manual run from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping API endpoint
+        run: |
+          URL="https://sprout-asahi.onrender.com/api/sources"
+          echo "Pinging $URL"
+          # Use a generous timeout to allow cold-start completion (~60s).
+          # `|| true` keeps the job green even if Render returns 503 mid-wake.
+          curl -sS --max-time 90 -o /dev/null \
+               -w "HTTP %{http_code}  ·  %{time_total}s  ·  %{size_download}b\n" \
+               "$URL" || true
