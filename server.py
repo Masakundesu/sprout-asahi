@@ -27,6 +27,7 @@ import socketserver
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -793,8 +794,22 @@ def llm_draft(field: str, payload: dict) -> dict:
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
             data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8", errors="replace")[:1000]
+        except Exception:
+            pass
+        print(f"[draft] fail for field='{field}': HTTP {e.code} {e.reason} | model={LLM_MODEL} | body={err_body}", file=sys.stderr)
+        return {
+            "ok": False, "reason": f"api_error: HTTP {e.code}", "field": field,
+            "final": _draft_fallback(field, payload),
+            "critique": DRAFT_CRITIQUE_FALLBACK.get(field, ""),
+            "model": LLM_MODEL,
+            "debug": err_body[:500],
+        }
     except Exception as e:
-        print(f"[draft] fail for field='{field}': {e}", file=sys.stderr)
+        print(f"[draft] fail for field='{field}': {type(e).__name__}: {e}", file=sys.stderr)
         return {
             "ok": False, "reason": f"api_error: {type(e).__name__}", "field": field,
             "final": _draft_fallback(field, payload),
