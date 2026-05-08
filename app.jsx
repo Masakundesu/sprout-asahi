@@ -3011,7 +3011,7 @@ function OnboardingChecklist() {
     const myIdeas = (app.state.extraIdeas || []).filter(i => i.author === me.id);
     const myFB    = (app.state.extraFeedback || []).filter(f => f.author === me.id);
     return [
-      { id: "idea", label: "アイデアを1本書く",                  done: myIdeas.length > 0,    href: "#/ideas",     hint: "白紙からでも、ニュース・シーズからでもOK" },
+      { id: "idea", label: "アイデアを1本書く",                  done: myIdeas.length > 0,    action: "new",       hint: "白紙からでも、ニュース・シーズからでもOK" },
       { id: "news", label: "今朝のニュースに目を通す",          done: true,                  hint: "" },
       { id: "save", label: "気になる記事を1本「保存」する",      done: savedCount > 0,        href: "#/dashboard", hint: "記事右下のしおりアイコンをタップ" },
       { id: "fb",   label: "仲間のアイデアにコメントする",        done: myFB.length > 0,       href: "#/ideas",     hint: "詳細ページの『コメントする』から" },
@@ -3064,8 +3064,13 @@ function OnboardingChecklist() {
               {!t.done && <Icon name="chevron-right" className="w-3.5 h-3.5 text-ink-300"/>}
             </>
           );
-          if (t.done || !t.href) {
+          if (t.done || (!t.href && !t.action)) {
             return <div key={t.id} className="flex items-center gap-2.5 p-2 rounded-lg">{Inner}</div>;
+          }
+          if (t.action === "new") {
+            return (
+              <button key={t.id} onClick={()=>startBlankIdea(app, data)} className="w-full text-left flex items-center gap-2.5 p-2 rounded-lg hover:bg-ink-50 transition">{Inner}</button>
+            );
           }
           return (
             <a key={t.id} href={t.href} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-ink-50 transition">{Inner}</a>
@@ -3082,10 +3087,10 @@ function OnboardingIllustration({ kind }) {
       <div className="rounded-xl bg-gradient-to-br from-asahi-500 to-asahi-700 text-white p-6 ring-1 ring-asahi-200">
         <div className="grid grid-cols-4 gap-3 text-[10.5px] font-bold">
           {[
-            { n: "01", t: "ニュース" },
-            { n: "02", t: "アイデア" },
-            { n: "03", t: "磨く" },
-            { n: "04", t: "採択" },
+            { n: "01", t: "書く" },
+            { n: "02", t: "AIで叩き台" },
+            { n: "03", t: "引用で深める" },
+            { n: "04", t: "仲間→役員" },
           ].map((s, i) => (
             <div key={i} className="bg-white/15 rounded-lg p-3 ring-1 ring-white/30 backdrop-blur">
               <div className="opacity-70 tracking-widest">{s.n}</div>
@@ -3096,49 +3101,90 @@ function OnboardingIllustration({ kind }) {
       </div>
     );
   }
-  if (kind === "news") {
-    return (
-      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4 space-y-2">
-        <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">あなた向け</div>
-        {[
-          { c: "生活者トレンド", t: "GLP-1普及で「飲む量×動機」が構造変化", s: ["YAS-17"] },
-          { c: "海外/先進企業事例", t: "Athletic Brewing が D2C で前年比 2.4x", s: ["REAL-ZERO"] },
-        ].map((a, i) => (
-          <div key={i} className="border-b border-ink-100 last:border-0 pb-2 last:pb-0">
-            <div className="flex items-center gap-1.5 text-[10px] text-ink-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-asahi-500"/><span>{a.c}</span>
-            </div>
-            <div className="text-[12px] font-bold text-ink-900 mt-0.5">{a.t}</div>
-            <div className="mt-1 flex gap-1">
-              {a.s.map(s => <span key={s} className="text-[9.5px] font-bold text-asahi-700 bg-asahi-50 ring-1 ring-asahi-200 px-1.5 rounded">{s}</span>)}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  if (kind === "idea") {
+  if (kind === "compose") {
     return (
       <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4">
-        <div className="flex items-start gap-3">
-          <div className="rounded-lg bg-ink-50 ring-1 ring-ink-200 p-2 text-[10px] text-ink-600 flex-1">
-            <div className="text-[9.5px] text-ink-400 tracking-widest">記事</div>
-            <div className="font-bold text-ink-800 mt-0.5">GLP-1 と飲料市場…</div>
-          </div>
-          <div className="text-asahi-500 text-2xl leading-none mt-3">→</div>
-          <div className="rounded-lg bg-asahi-50 ring-1 ring-asahi-200 p-2 text-[10px] flex-1">
-            <div className="text-[9.5px] text-asahi-600 tracking-widest font-bold">アイデア下書き</div>
-            <div className="font-bold text-ink-800 mt-0.5">『Sober Wellness』</div>
-            <div className="mt-1 flex gap-1 flex-wrap">
-              {["YAS-17","Hop-β","REAL-ZERO"].map(s => <span key={s} className="text-[9px] font-bold text-asahi-700 bg-white ring-1 ring-asahi-200 px-1 rounded">{s}</span>)}
-            </div>
-          </div>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">IDEA EDITOR</div>
+          <span className="text-[10.5px] font-bold text-emerald-600 ml-auto">✓ 自動保存済み</span>
+        </div>
+        <div className="flex gap-2">
+          <div className="rounded-md ring-1 ring-ink-200 bg-ink-50 px-2.5 py-1.5 text-[11px] font-mono uppercase font-bold text-ink-700">PREMIUM-NA</div>
+          <div className="flex-1 rounded-md ring-1 ring-ink-200 bg-white px-3 py-1.5 text-[12px] font-bold text-ink-800">健康志向時代のプレミアムノンアル</div>
         </div>
         <div className="mt-3 grid grid-cols-3 gap-1 text-[9.5px]">
-          {["問題","顧客","ソリューション","市場規模","Go-to-Market","収益モデル"].map(k => (
+          {["Why now","顧客","ソリューション","市場規模","GTM","収益モデル"].map(k => (
             <div key={k} className="bg-ink-50 rounded px-1.5 py-1 text-ink-600 font-semibold text-center">{k}</div>
           ))}
         </div>
+        <div className="mt-2 text-[10px] text-ink-500">タイトルだけで OK。書き始めた瞬間にドラフトが作られて、入力は自動保存されます。</div>
+      </div>
+    );
+  }
+  if (kind === "ai-assist") {
+    return (
+      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4 space-y-3">
+        <div className="text-[10.5px] tracking-widest font-bold text-ink-700">この案の戦い方 (類型)</div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            { num:"①", l:"補填型", on:false },
+            { num:"②", l:"シナジー型", on:true },
+            { num:"③", l:"オプション型", on:false },
+          ].map(a => (
+            <div key={a.l} className={`p-2 rounded-md border ${a.on ? "border-asahi-500 bg-asahi-50 ring-2 ring-asahi-200" : "border-ink-200"}`}>
+              <div className="text-[10px] font-extrabold text-asahi-600">{a.num}</div>
+              <div className="text-[10.5px] font-bold text-ink-900 mt-0.5">{a.l}</div>
+            </div>
+          ))}
+        </div>
+        <div className="rounded-md bg-asahi-50 ring-1 ring-asahi-200 p-2.5 text-[10.5px] text-asahi-900">
+          <div className="font-bold">②シナジー型のKPIロジック</div>
+          <div className="text-asahi-800 mt-0.5">本業ARPU向上率 × 既存顧客数 — 本業への波及で測る</div>
+        </div>
+        <div className="text-[10px] text-ink-500 leading-relaxed">『AIで書く』の出力が、この類型の数式と参考事例(KINTO 等)を踏まえた内容になります。</div>
+      </div>
+    );
+  }
+  if (kind === "cite") {
+    return (
+      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10.5px] tracking-widest font-bold text-ink-700 mb-2">引用するシーズ</div>
+          <div className="space-y-1">
+            {[
+              { code:"REAL-ZERO", n:"本格風味ノンアル", on:true },
+              { code:"Hop-β", n:"ホップ機能性成分", on:true },
+              { code:"YAS-17", n:"独自酵母", on:false },
+            ].map(s => (
+              <div key={s.code} className={`flex items-center gap-1.5 p-1.5 rounded ${s.on ? "bg-asahi-50 ring-1 ring-asahi-200" : ""}`}>
+                <div className={`w-3 h-3 rounded border flex items-center justify-center ${s.on ? "bg-asahi-500 border-asahi-500 text-white" : "border-ink-300"}`}>
+                  {s.on && <span className="text-[8px]">✓</span>}
+                </div>
+                <div className="h-5 px-1 rounded bg-asahi-500 text-white text-[8px] font-extrabold flex items-center">{s.code}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10.5px] tracking-widest font-bold text-ink-700 mb-2">引用する記事</div>
+          <div className="space-y-1">
+            {[
+              { s:"日経", t:"GLP-1で飲用の構造変化", on:true },
+              { s:"BI", t:"Athletic Brewing 前年比2.4x", on:false },
+            ].map((a, i) => (
+              <div key={i} className={`flex items-start gap-1.5 p-1.5 rounded ${a.on ? "bg-sky-50 ring-1 ring-sky-200" : ""}`}>
+                <div className={`w-3 h-3 mt-0.5 rounded border flex items-center justify-center ${a.on ? "bg-sky-600 border-sky-600 text-white" : "border-ink-300"}`}>
+                  {a.on && <span className="text-[8px]">✓</span>}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[8.5px] text-ink-500">{a.s}</div>
+                  <div className="text-[10px] font-bold line-clamp-2">{a.t}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="col-span-2 text-[10px] text-ink-500 leading-relaxed mt-1">引用したシーズと記事はAIプロンプトの根拠として使われ、Why now や差別化の本気度が上がります。</div>
       </div>
     );
   }
@@ -3218,12 +3264,12 @@ function OnboardingModal() {
   }
 
   const STEPS = [
-    { kind: "intro",    eyebrow: "ASAHI R&D IDEATION HUB",   title: "SPROUT へようこそ",          body: "シーズ × ニーズで事業アイデアを連続的に生み出すための場所。思いついた瞬間に書ける/業界シグナルから着想する/類型・Phaseで整える、を1つのツールで。" },
-    { kind: "idea",     eyebrow: "STEP 1 ｜ 思いついたら書く",         title: "白紙からでも、ニュースからでも",   body: "サイドバーやダッシュボードの『アイデアを書く』を押せば即ドラフト作成 → 自動保存。記事やシーズはあとから任意で紐付け、AIで叩き台も生成できます。" },
-    { kind: "news",     eyebrow: "STEP 2 ｜ 兆しから着想する",         title: "今朝のニュース",       body: "国内外の食・健康・サステナのトレンドを毎朝集約。担当シーズに響く記事は『あなた向け』に並び、その場でアイデアに変換できます。" },
-    { kind: "feedback", eyebrow: "STEP 3 ｜ 類型 × Phase で整える",     title: "6類型 + ゲート基準",   body: "補填/シナジー/オプション/意義/再定義/プラットフォームから戦い方を選ぶと、AI生成の観点が変わります。Phaseと次ゲート基準のチェックリストで進捗を可視化。" },
-    { kind: "review",   eyebrow: "STEP 4 ｜ 仲間と磨いて役員へ",        title: "コメント → 判定 → 追跡",         body: "提出すると関係者からコメントが届き、改訂履歴が残ります。役員2名以上の承認で採択、予算とマイルストーンが自動追跡されます。" },
-    { kind: "domains",  eyebrow: "もう少しだけ",                        title: "興味ある領域を選んでください", body: "朝のフィード上段にこの領域の記事を並べます。あとからいつでも変更できます。" },
+    { kind: "intro",    eyebrow: "ASAHI R&D IDEATION HUB",         title: "SPROUT へようこそ",                       body: "AQI のシーズと市場ニーズを掛け合わせて、新規事業アイデアを連続的に生み出すツール。タイトル一行から書き始め、AI に叩き台を任せ、引用で深め、仲間と磨いて役員に出す。— 4ステップで使い方を紹介します。" },
+    { kind: "compose",  eyebrow: "STEP 1 ｜ まず書く",               title: "白紙からでも、ニュースやシーズからでも",   body: "左サイドバーやダッシュボードの『アイデアを書く』を押すと、即ドラフトが作成されて自動保存が始まります。タイトルだけでも OK、内容は後から埋められます。" },
+    { kind: "ai-assist", eyebrow: "STEP 2 ｜ AI に叩き台を任せる",     title: "類型を選ぶと、出力が変わる",                  body: "各セクション右上の『AI で書く』で叩き台を生成。冒頭の 6 類型 (補填/シナジー/オプション/意義/再定義/プラットフォーム) から戦い方を選んでおくと、AI の数字の組み立て方や参考事例がその類型に合わせて変わります。失敗時はバナーで通知されるので、無関係な見本が混入する心配はありません。" },
+    { kind: "cite",     eyebrow: "STEP 3 ｜ 引用で根拠を強化",         title: "ニュースとシーズを紐付ける",                 body: "右パネルから業界シグナル (ニュース) と自社シーズ (R&D 技術) を任意でチェック。コードや名称で検索できます。AI 生成時に引用として使われ、Why now や差別化の説得力が増します。" },
+    { kind: "review",   eyebrow: "STEP 4 ｜ 仲間 → 役員レビュー",      title: "提出 → コメント → 改訂",                     body: "提出すると関係者からコメントが届き、改訂のたびに版が記録されます。役員 2 名以上の承認で『採択』、その後マイルストーンと予算消化が自動追跡されます。提出前は『提出前のセルフチェック』(TAM 1,000 億超候補があるか 等) で抜け漏れを確認。" },
+    { kind: "domains",  eyebrow: "もう少しだけ",                       title: "興味ある領域を選んでください",                body: "ダッシュボード上段に該当領域のニュースを優先表示します。後からいつでも変更できます (右上の設定アイコン → オンボーディングをやり直す)。" },
   ];
 
   if (app.state.prefs.onboarded) return null;
@@ -3962,99 +4008,163 @@ function PresetPickerModal({ open, presets, existing, onPick, onClose }) {
 // ---------------------------------------------------------------
 //  Setup Guide (初見ユーザー向け使い方)
 // ---------------------------------------------------------------
-function ProductTourVideo() {
-  const [playing, setPlaying] = useState(false);
-  const [available, setAvailable] = useState(null); // null=checking, true=ok, false=missing
-  const SRC = "/assets/sprout-tour.mp4";
-
-  useEffect(() => {
-    let aborted = false;
-    fetch(SRC, { method: "HEAD" })
-      .then(r => { if (!aborted) setAvailable(r.ok); })
-      .catch(() => { if (!aborted) setAvailable(false); });
-    return () => { aborted = true; };
-  }, []);
-
-  if (playing && available) {
-    return (
-      <div className="relative rounded-2xl overflow-hidden ring-1 ring-ink-200 aspect-video shadow-card bg-ink-900">
-        <video src={SRC} controls autoPlay playsInline className="w-full h-full"/>
-      </div>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => available && setPlaying(true)}
-      disabled={!available}
-      className="group relative w-full rounded-2xl overflow-hidden ring-1 ring-ink-200 aspect-video shadow-card bg-gradient-to-br from-asahi-600 via-asahi-500 to-asahi-700 text-left disabled:cursor-default">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_60%)]"/>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-        <div className={`h-20 w-20 rounded-full bg-white/15 ring-1 ring-white/40 backdrop-blur flex items-center justify-center transition ${available ? "group-hover:scale-105 group-hover:bg-white/25" : ""}`}>
-          <svg viewBox="0 0 24 24" className="w-9 h-9 ml-1" fill="white"><path d="M8 5v14l11-7z"/></svg>
-        </div>
-        <div className="mt-5 text-[11px] tracking-[0.25em] font-bold opacity-90">SPROUT — PRODUCT TOUR</div>
-        <div className="mt-1 text-[15px] font-semibold opacity-95">Asahi R&amp;D Ideation Hub</div>
-        {available === false && (
-          <div className="mt-3 text-[11px] bg-black/30 rounded-full px-3 py-1">動画準備中</div>
-        )}
-      </div>
-    </button>
-  );
-}
-
 function SetupGuidePage() {
   const { navigate } = useHashRoute();
+  const data = window.SPROUT_DATA;
+  const app = useApp();
 
   const steps = [
-    { n:1, icon:"rss",     title:"ニュースを浴びる",     desc:"19のニュースソースから、自社R&Dに関連する記事を毎日自動収集します。「あなた向け」枠に、担当シーズと重なる記事が並びます。", cta:{ label:"ニュースを開く", href:"#/dashboard" } },
-    { n:2, icon:"bulb",    title:"アイデアに変える",     desc:"気になる記事の「アイデアにする」を押すと、その記事と関連シーズが下書きに自動でぶら下がります。9項目のテンプレを埋めるだけ。", cta:{ label:"アイデアを書く", href:"#/ideas/new" } },
-    { n:3, icon:"message", title:"仲間と磨く",           desc:"提出すると関係者からコメントが届きます。役職タグ(exec / advisor / peer)付きなので、誰の意見か一目瞭然。改訂のたびに履歴が残ります。", cta:{ label:"アイデア一覧へ", href:"#/ideas" } },
-    { n:4, icon:"trophy",  title:"役員レビュー → 採択",  desc:"3名の役員が判定し、2名以上の承認で「採択」。マイルストーン・予算消化が自動追跡されます。", cta:{ label:"サンプルを見る", href:"#/ideas" } },
+    { n:1, kind:"compose",   title:"まず書く",
+      lead:"白紙からでも、ニュース・シーズからでも",
+      desc:"左サイドバー、ダッシュボードのヒーロー、アイデア一覧の『新規作成』— どれを押してもその場でドラフトが作成されて、エディタに飛びます。タイトルを書かなくても OK、書き始めた瞬間に自動保存が始まります。",
+      points: [
+        "タイトルだけでも保存される (内容は後で埋められる)",
+        "ニュース記事の『アイデアにする』からだと、その記事が初期紐付け済み",
+        "シーズページの『このシーズでアイデアを書く』からだと、シーズが初期紐付け済み",
+      ],
+      cta:{ label:"白紙から書く", action:"new" } },
+    { n:2, kind:"ai-assist", title:"AI に叩き台を任せる",
+      lead:"類型を選ぶと、AIの観点が変わる",
+      desc:"各セクション右上の『AIで書く』を押すと、引用しているシーズ・記事・既入力の内容を踏まえてAIが叩き台を生成します。冒頭の『この案の戦い方 (類型)』で 6 類型から 1 つ選んでおくと、AI の数字の組み立て方や参考事例がその類型に合わせて変わります。",
+      points: [
+        "①補填型: 本業縮退カーブから必要補填額を逆算",
+        "②シナジー型: 本業 ARPU・LTV 向上で測る",
+        "④意義型: ロジックモデル (アウトカム→インパクト)",
+        "AIが失敗した時はバナーで通知 → 『再試行』で再生成",
+      ],
+      cta:{ label:"類型ライブラリを見る", action:"new" } },
+    { n:3, kind:"cite",      title:"引用で根拠を強化",
+      lead:"ニュースとシーズを紐付ける",
+      desc:"右パネルの『引用するシーズ』『引用する記事』からチェックを入れると、AI 生成や提案書の根拠として使われます。コードや名称で検索可能。",
+      points: [
+        "シーズコード (REAL-ZERO 等) は AI 生成時に必ず引用される",
+        "記事の数値や固有名詞も AI が引用する",
+        "右上の検索ボックスでカテゴリや媒体名から絞り込み",
+      ],
+      cta:{ label:"シーズ一覧を見る", href:"#/seeds" } },
+    { n:4, kind:"review",    title:"提出 → コメント → 改訂 → 役員レビュー",
+      lead:"仲間と磨いて、役員に出す",
+      desc:"提出するとアイデア詳細ページに役員・アドバイザー・仲間からコメントが届きます。改訂するたびに版が記録され、役員 2 名以上の承認で『採択』。採択後はマイルストーンと予算消化が自動追跡されます。",
+      points: [
+        "提出前は『提出前のセルフチェック』でTAM/応用市場仮説 等を確認",
+        "コメントには役職タグ (exec / advisor / peer) が付く",
+        "v1 / v2 / v3… の改訂履歴は自動記録",
+        "採択は exec ロール 2 名以上の承認で確定",
+      ],
+      cta:{ label:"アイデア一覧へ", href:"#/ideas" } },
+  ];
+
+  const faqs = [
+    { q:"白紙から本当に書き始めて大丈夫?",
+      a:"はい。タイトル一行で OK です。書き始めた瞬間にドラフトが作成され、入力は自動保存されます。後で記事やシーズを紐付けて深められます。" },
+    { q:"11 セクション全部埋めないと提出できない?",
+      a:"提出に必須ではありませんが、役員レビューには Why now / 顧客 / ソリューション / 市場規模 / Ask の 5 つは最低限必要です。『AIで書く』で叩き台を一気に作って、役員視点の弱点 (critique) を見ながら磨くのが効率的。" },
+    { q:"類型 (戦い方) は必須?",
+      a:"必須ではありませんが、類型を選ぶと AI 出力の数字の組み立て方や参考事例が大きく変わります。決めかねるなら『◎ 本命』マーク付きの①補填型・②シナジー型・④意義型から試してみてください。" },
+    { q:"AI 生成が失敗した時は?",
+      a:"フィールド近くに赤いバナー『AI生成に失敗しました — 再試行』が出ます。Anthropic API のクレジット切れ・接続エラーが主な原因。Render のログ (ダッシュボード→Logs) で詳細が確認できます。" },
+    { q:"間違って削除したら?",
+      a:"削除前に確認ダイアログが出ますが、削除後の自動復元はありません。ブラウザの localStorage に保存されているので、念のため重要なアイデアは『提出』しておくと履歴 (v1, v2 ...) として残ります。" },
+    { q:"オンボーディングをもう一度見たい",
+      a:"画面右上の設定アイコン (•••) → 『オンボーディングをやり直す』をクリックすると、初回モーダルが再表示されます。" },
+    { q:"複数人で同じアイデアを編集できる?",
+      a:"現状は localStorage 保存のため、各ブラウザで独立しています。チーム共有は将来の機能拡張として検討中です。" },
   ];
 
   return (
     <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-8">
       {/* Title */}
       <div>
-        <h1 className="text-[24px] font-extrabold tracking-tight text-ink-900">使い方</h1>
-        <p className="text-ink-500 text-[13px] mt-1.5">SPROUT の使い方を 4 ステップで。</p>
+        <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">USAGE GUIDE</div>
+        <h1 className="text-[24px] font-extrabold tracking-tight text-ink-900 mt-1">使い方ガイド</h1>
+        <p className="text-ink-500 text-[13px] mt-1.5">アイデアを書き始めて、AI に叩き台を任せ、仲間と磨いて役員に出す。— 4 ステップで紹介します。</p>
       </div>
 
-      {/* Main use-case video */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-[10.5px] tracking-widest font-bold text-asahi-600">PRODUCT TOUR</span>
-          <span className="text-[11px] text-ink-400">約 90 秒</span>
-        </div>
-        <h2 className="text-[16px] font-bold text-ink-900">メインユースケースを動画で見る</h2>
-        <p className="text-[12.5px] text-ink-600 leading-relaxed">
-          毎朝のニュース取得 → 関連シーズと結びつけてアイデア化 → 仲間と磨く → 役員レビュー、までの流れを一気に確認できます。
-        </p>
-        <ProductTourVideo/>
-        <div className="text-[11px] text-ink-500 leading-relaxed">
-          ※ 動画ファイルは <code className="px-1 rounded bg-ink-100 font-mono text-[10.5px]">/assets/sprout-tour.mp4</code> に配置すると、サムネイルをタップしてその場で再生できます。
-        </div>
-      </div>
-
-      {/* Steps */}
-      <div className="space-y-3">
-        {steps.map(s => (
-          <div key={s.n} className="flex items-start gap-4 p-5 rounded-xl bg-white ring-1 ring-ink-100">
-            <div className="shrink-0 h-10 w-10 rounded-lg bg-asahi-50 text-asahi-600 flex items-center justify-center font-extrabold text-[14px]">
-              {s.n}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-[15px] text-ink-900">{s.title}</h3>
-              <p className="text-[12.5px] text-ink-600 mt-1 leading-relaxed">{s.desc}</p>
-              <button onClick={()=>navigate(s.cta.href)}
-                className="mt-3 text-[12px] font-semibold text-asahi-600 hover:text-asahi-700">
-                {s.cta.label} →
-              </button>
-            </div>
+      {/* Quick start CTA */}
+      <Card className="p-5 lg:p-6 bg-gradient-to-br from-asahi-50 to-white ring-1 ring-asahi-200">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">QUICK START</div>
+            <h2 className="text-[18px] font-extrabold tracking-tight text-ink-900 mt-1">読まずに、試したほうが早い</h2>
+            <p className="text-[12.5px] text-ink-600 mt-1">タイトル一行から書き始められます。AIで叩き台を作って、後から磨きましょう。</p>
           </div>
+          <button onClick={() => startBlankIdea(app, data)}
+            className="inline-flex items-center gap-1.5 px-4 h-10 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-bold transition">
+            <Icon name="plus" className="w-4 h-4"/> 白紙から書き始める
+          </button>
+        </div>
+      </Card>
+
+      {/* Steps with illustrations */}
+      <div className="space-y-5">
+        {steps.map(s => (
+          <Card key={s.n} className="p-5 lg:p-6">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+              <div className="md:col-span-7">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-full bg-asahi-500 text-white flex items-center justify-center font-extrabold text-[12px]">
+                    {s.n}
+                  </div>
+                  <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">STEP {s.n}</div>
+                </div>
+                <h3 className="font-extrabold text-[17px] text-ink-900 mt-2">{s.title}</h3>
+                <div className="text-[12.5px] text-asahi-700 font-bold mt-1">{s.lead}</div>
+                <p className="text-[12.5px] text-ink-600 mt-2 leading-relaxed">{s.desc}</p>
+                <ul className="mt-3 space-y-1">
+                  {s.points.map((p, i) => (
+                    <li key={i} className="flex items-start gap-2 text-[11.5px] text-ink-700">
+                      <Icon name="check" className="w-3.5 h-3.5 text-asahi-500 mt-0.5 shrink-0"/>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-4">
+                  {s.cta.action === "new" ? (
+                    <button onClick={() => startBlankIdea(app, data)}
+                      className="text-[12px] font-bold text-asahi-600 hover:text-asahi-700">
+                      {s.cta.label} →
+                    </button>
+                  ) : (
+                    <a href={s.cta.href} className="text-[12px] font-bold text-asahi-600 hover:text-asahi-700">
+                      {s.cta.label} →
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="md:col-span-5">
+                <OnboardingIllustration kind={s.kind}/>
+              </div>
+            </div>
+          </Card>
         ))}
       </div>
+
+      {/* FAQ */}
+      <div>
+        <h2 className="text-[18px] font-extrabold tracking-tight text-ink-900">よくある質問</h2>
+        <div className="mt-3 space-y-2">
+          {faqs.map((f, i) => (
+            <details key={i} className="group p-4 rounded-xl bg-white ring-1 ring-ink-100 hover:ring-ink-200 transition">
+              <summary className="flex items-center gap-2 cursor-pointer select-none">
+                <Icon name="chevron-right" className="w-4 h-4 text-ink-500 transition group-open:rotate-90"/>
+                <span className="font-bold text-[13px] text-ink-900">{f.q}</span>
+              </summary>
+              <div className="text-[12.5px] text-ink-700 leading-relaxed mt-2 ml-6">{f.a}</div>
+            </details>
+          ))}
+        </div>
+      </div>
+
+      {/* Re-trigger onboarding */}
+      <Card className="p-5 ring-1 ring-ink-100 bg-cream-50/40">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <div className="font-bold text-[13px] text-ink-900">オンボーディングをもう一度見たい?</div>
+            <div className="text-[11.5px] text-ink-600 mt-0.5">設定をリセットして初回モーダルを再表示します。</div>
+          </div>
+          <Button variant="outline" icon="sparkles" onClick={()=>{ app.resetOnboarding(); navigate("#/dashboard"); }}>オンボーディングをやり直す</Button>
+        </div>
+      </Card>
     </div>
   );
 }
