@@ -12,6 +12,27 @@ const { useState, useEffect, useMemo, useRef, useCallback, createContext, useCon
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function nowISOMin() { return new Date().toISOString().slice(0, 16).replace("T", " "); }
 
+// Create an empty draft and jump straight into the editor.
+// Eliminates "fill in /ideas/new then forget to save" data loss and unifies all
+// blank-from-scratch entry points (sidebar, dashboard hero, ideas list, etc.).
+function startBlankIdea(app, data) {
+  const newId = "i_local_" + Math.random().toString(36).slice(2,8);
+  const today = todayISO();
+  const idea = {
+    id: newId, codename: "UNTITLED", title: "(無題)",
+    author: data.me.id, status: "ドラフト",
+    archetype: null, phase: 1, gateChecks: {},
+    createdAt: today, updatedAt: today,
+    likes: 0, likedBy: [],
+    linkedSeeds: [], linkedArticles: [],
+    format: { problem:"", customer:"", solution:"", unfairAdvantage:"", marketSize:"", goToMarket:"", businessModel:"", competitors:"", roadmap: [], risks: [], ask: "" },
+  };
+  app.addIdea(idea);
+  app.snapshotIdea(newId, { by: data.me.id, changeNote: "新規作成", format: idea.format, linkedSeeds: [], linkedArticles: [] });
+  window.location.hash = `#/ideas/${newId}/edit`;
+  return newId;
+}
+
 // ---------------------------------------------------------------
 //  6類型 (新規事業のアーキタイプ) — 役員向けPhase0スキームに対応
 // ---------------------------------------------------------------
@@ -660,6 +681,7 @@ const useLive = () => useContext(LiveCtx);
 function Shell({ children }) {
   const { navigate, parts } = useHashRoute();
   const app = useApp();
+  const data = window.SPROUT_DATA;
   const route = parts[0] || "dashboard";
   const unreadFBCount = useUnreadFBCount();
 
@@ -695,7 +717,7 @@ function Shell({ children }) {
           })}
           <div className="pt-3">
             <button
-              onClick={() => navigate("#/ideas/new")}
+              onClick={() => startBlankIdea(app, data)}
               className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 transition text-[13px] font-semibold">
               <Icon name="plus" className="w-4 h-4"/> アイデアを書く
             </button>
@@ -970,16 +992,16 @@ function Dashboard() {
             <h2 className="text-[20px] lg:text-[22px] font-extrabold tracking-tight text-ink-900 mt-1">アイデアを書く</h2>
             <p className="text-[12.5px] text-ink-600 mt-1">思いついたらまず書く。後で記事やシーズを紐付けて深められます。</p>
           </div>
-          <button onClick={() => window.location.hash = "#/ideas/new"}
+          <button onClick={() => startBlankIdea(app, data)}
             className="inline-flex items-center gap-1.5 px-4 h-10 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-bold transition">
             <Icon name="plus" className="w-4 h-4"/> 白紙から書く
           </button>
         </div>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11.5px]">
-          <a href="#/ideas/new" className="p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 transition">
+          <button onClick={() => startBlankIdea(app, data)} className="text-left p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 transition">
             <div className="font-bold text-ink-900 flex items-center gap-1.5"><Icon name="pencil" className="w-3.5 h-3.5"/>白紙から書く</div>
             <div className="text-ink-500 mt-0.5">タイトルだけでもOK。あとから埋める</div>
-          </a>
+          </button>
           <a href="#/seeds" className="p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 transition">
             <div className="font-bold text-ink-900 flex items-center gap-1.5">🧪 シーズから着想</div>
             <div className="text-ink-500 mt-0.5">REAL-ZERO等の自社技術から発想</div>
@@ -1279,7 +1301,7 @@ function IdeasPage() {
         <div>
           <h1 className="text-[22px] lg:text-[26px] font-extrabold tracking-tight text-ink-900">アイデア</h1>
         </div>
-        <button onClick={() => window.location.hash = "#/ideas/new"}
+        <button onClick={() => startBlankIdea(app, data)}
           className="inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-semibold transition">
           <Icon name="plus" className="w-4 h-4"/> 新規作成
         </button>
@@ -1355,7 +1377,7 @@ function IdeasPage() {
                 {tab === "mine" && (
                   <>
                     <div className="text-[12px] text-ink-500 mb-4">思いついたまま書いてOK。タイトルだけからでも始められます。</div>
-                    <button onClick={() => window.location.hash = "#/ideas/new"}
+                    <button onClick={() => startBlankIdea(app, data)}
                       className="inline-flex items-center gap-1.5 px-4 h-10 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-bold transition">
                       <Icon name="plus" className="w-4 h-4"/> 新規作成
                     </button>
@@ -1596,18 +1618,27 @@ function IdeaDetailPage({ id }) {
       <div className="xl:col-span-4 space-y-5">
         {/* スコア + リアクション */}
         <Card className="p-5">
-          <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">評価スコア</div>
-          <div className="space-y-2.5">
-            {idea.scores && Object.entries({market:"市場性", feasibility:"実現性", seedFit:"シーズ活用", novelty:"新規性"}).map(([k,lbl]) => {
-              const v = idea.scores[k] || 0;
-              return (
-                <div key={k}>
-                  <div className="flex justify-between text-[11.5px] text-ink-700"><span>{lbl}</span><span className="font-bold">{v.toFixed(1)}</span></div>
-                  <div className="h-1.5 rounded bg-ink-100 mt-1"><div className="h-1.5 rounded bg-gradient-to-r from-asahi-400 to-asahi-600" style={{width:`${(v/5)*100}%`}}/></div>
-                </div>
-              );
-            })}
-          </div>
+          {idea.scores ? (
+            <>
+              <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">評価スコア</div>
+              <div className="space-y-2.5">
+                {Object.entries({market:"市場性", feasibility:"実現性", seedFit:"シーズ活用", novelty:"新規性"}).map(([k,lbl]) => {
+                  const v = idea.scores[k] || 0;
+                  return (
+                    <div key={k}>
+                      <div className="flex justify-between text-[11.5px] text-ink-700"><span>{lbl}</span><span className="font-bold">{v.toFixed(1)}</span></div>
+                      <div className="h-1.5 rounded bg-ink-100 mt-1"><div className="h-1.5 rounded bg-gradient-to-r from-asahi-400 to-asahi-600" style={{width:`${(v/5)*100}%`}}/></div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="text-[11.5px] text-ink-500">
+              <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-1">評価スコア</div>
+              役員レビュー後にスコアが付きます。
+            </div>
+          )}
           {likedByUsers.length > 0 && (
             <div className="mt-4 pt-4 border-t border-ink-100">
               <div className="text-[10.5px] tracking-widest font-bold text-ink-400 mb-2">いいね</div>
@@ -2009,7 +2040,10 @@ function IdeaEditor({ id: editingId } = {}) {
   });
   const [aiFilling, setAiFilling] = useState({});  // { [fieldKey]: true }
   const [aiCritiques, setAiCritiques] = useState({}); // { [fieldKey]: string }
+  const [aiErrors, setAiErrors] = useState({}); // { [fieldKey]: { reason, raw } }
   const [bulkFilling, setBulkFilling] = useState(false);
+  const [seedQ, setSeedQ] = useState("");
+  const [articleQ, setArticleQ] = useState("");
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved
   const dirty = useRef(false);
   const lastSyncedId = useRef(null);
@@ -2145,7 +2179,7 @@ function IdeaEditor({ id: editingId } = {}) {
   function toggleArticle(id) { dirty.current = true; setLinkedArticles(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
   // Wrap setters so user interactions mark the form dirty (auto-save gated on this)
   const onTitleChange   = (v) => { dirty.current = true; setTitle(v); };
-  const onCodenameChange= (v) => { dirty.current = true; setCodename(v); };
+  const onCodenameChange= (v) => { dirty.current = true; setCodename(v.toUpperCase()); };
   const onArchetypeChange = (v) => { dirty.current = true; setArchetype(v); };
   const onPhaseChange   = (v) => { dirty.current = true; setPhase(v); };
   const onGateChecksChange = (v) => { dirty.current = true; setGateChecks(v); };
@@ -2199,29 +2233,29 @@ function IdeaEditor({ id: editingId } = {}) {
           existingFields: existing,
         }),
       });
+      const httpStatus = r.status;
       const json = await r.json().catch(() => ({}));
+      const apiOk = json.ok !== false && r.ok;
+      if (!apiOk) {
+        // Surface the failure honestly — never silently insert unrelated text.
+        setAiErrors(prev => ({ ...prev, [k]: { reason: json.reason || `HTTP ${httpStatus}`, raw: (json.debug || "").slice(0, 240) } }));
+        setAiFilling(prev => { const n = { ...prev }; delete n[k]; return n; });
+        return;
+      }
+      // Clear any prior error for this field on success
+      setAiErrors(prev => { const n = { ...prev }; delete n[k]; return n; });
       txt = (json.final || "").trim();
       critique = (json.critique || "").trim();
     } catch (e) {
-      txt = "";
+      setAiErrors(prev => ({ ...prev, [k]: { reason: `network: ${e && e.message || e}`, raw: "" } }));
+      setAiFilling(prev => { const n = { ...prev }; delete n[k]; return n; });
+      return;
     }
 
     if (!txt) {
-      // Fallback to local sample so the UI still demos when no API key set
-      const fallback = {
-        problem: "GLP-1 普及で外食ビール客単価が前年比 -8% (出典: 帝国DB 2025)。一方ノンアル来店動機は同期間で +24% (出典: ぐるなび来店調査)。「飲む量×動機」の二重シフトは構造変化であり、既存ビール事業の DCF が 2027 年以降に劣化するため、24 ヶ月以内に新ブランドを立ち上げる必要がある。",
-        customer: "都市部 32 歳・年収 800 万円・週 3 で会食する管理職。『接待後にもう一杯欲しいが、翌朝のパフォーマンスを落とせない』時に、現状はノンアルビールで代替するが「子供っぽい / 体験が貧しい」と感じている。社内パネル N=120 で官能評価が本格ビール対比 -1.2 点、満足度が低い。",
-        solution: "「飲む時間を、自分の状態を上げる時間に変える」気分デザイン・プレミアムノンアル。REAL-ZERO で本格風味、Hop-β でリラックス機能性、LB-4012 で腸内コンディションを同時提供する複合機能型。350ml 缶 480 円 / D2C サブスク 4,980 円月。",
-        unfairAdvantage: "REAL-ZERO の官能評価データ 20 年分 (社内パネル N=12,000 累積) は再現に最低 8 年。Hop-β は特許出願中 (JP 2024-XXXXXX)。LB-4012 は TRL 78%・パイロット生産済。3 つの組合せ自体が国内外に存在せず、競合追随に推定 5-7 年。",
-        marketSize: "TAM: 国内ノンアル $2.5B + 海外ノンアル $28B = $30.5B (出典: Euromonitor 2030)。SAM: プレミアム機能性ノンアル (単価 400 円以上 × 健康志向層) で国内 $0.8B (推定: TAM × プレミアム比率 32%)。SOM: 3 年で国内 50 億円 GMV (単価 480 円 × 年 18 回 × 顧客 580K)。",
-        goToMarket: "Phase 1 (〜2026 Q4): 都内ゼロプルーフバー 5 店舗、KPI = 月販 8,000 本・NPS 50。Phase 2 (2027 H1): 高感度 CVS 200 店 + D2C 2 万人会員、KPI = リピート率 40%・LTV 18,000 円。Phase 3 (2027 H2-): GMS 1,500 店 + 欧米テスト、KPI = GMV 50 億円。",
-        businessModel: "単価 480 円 × 月 6 本 × 12 ヶ月 = 年 LTV 34,560 円、原価率 38% で貢献利益 21,427 円。CAC 8,000 円、回収 4.5 ヶ月。スケール時は外食 BtoB 固定単価 (1 店 8 万円/月) が損益分岐の安定剤、小売の値引き耐性を確保。",
-        competitors: "縦軸『機能性の強度』× 横軸『風味の本格度』で配置。Athletic Brewing は本格度高だが機能性は弱、Recess は機能性高だが風味が水様、Kin Euphorics はライフスタイル軸。当社は『本格度高 × 機能性高』の右上スポットが空白で、3 シーズの組合せで唯一占有可能。",
-        roadmap: "Phase 1 (2026 Q3-Q4): プロト 5 SKU、外食 5 店舗テスト。仮説『月 8,000 本売れる』、Kill: 月販 4,000 本未満。Phase 2 (2027 H1): D2C ローンチ、機能性表示取得。仮説『リピート 40%』、Kill: 25% 未満。Phase 3 (2027 H2): GMS 拡大。仮説『GMV 50 億円』。",
-        risks: "①機能性表示遅延 (影響:大/確率:中 — 打ち手: 申請を 2026 Q1 前倒し、薬事 1 名専任)。②既存ビール事業とのカニバリ (影響:中/確率:高 — 打ち手: 別ブランド・別法人スキームで意思決定独立化、6 ヶ月後にカニバリ率測定)。③プレミアム単価の受容性 (影響:大/確率:中 — 打ち手: Phase 1 で価格弾力性データ取得)。",
-        ask: "予算 1.8 億円 (R&D 0.8 / マーケ 0.6 / 人件費 0.4)。4.5 FTE (R&D 2 名社内転籍、ブランド 1 名外部、薬事 0.5 名、外食 1 名)。Go/No-Go: 2026 年 12 月末、Phase 1 月販 8,000 本 + NPS 50 以上で判定。",
-      };
-      txt = fallback[k] || "";
+      setAiErrors(prev => ({ ...prev, [k]: { reason: "AIから空の応答が返りました", raw: "" } }));
+      setAiFilling(prev => { const n = { ...prev }; delete n[k]; return n; });
+      return;
     }
 
     setAiCritiques(prev => ({ ...prev, [k]: critique }));
@@ -2317,7 +2351,6 @@ function IdeaEditor({ id: editingId } = {}) {
       likes: 0,
       likedBy: [],
       linkedArticles, linkedSeeds,
-      scores: { market: 3.5, feasibility: 3.5, seedFit: 3.8, novelty: 3.5 },
       format: formatBody
     };
     app.addIdea(idea);
@@ -2391,6 +2424,7 @@ function IdeaEditor({ id: editingId } = {}) {
           const overChars = f.chars && len > f.chars;
           const filling = !!aiFilling[f.key];
           const critique = aiCritiques[f.key];
+          const aiErr = aiErrors[f.key];
           const prevGroup = i > 0 ? fieldOrder[i-1].group : null;
           const showGroupHeader = f.group && f.group !== prevGroup;
           const groupMeta = showGroupHeader ? FIELD_GROUPS[f.group] : null;
@@ -2419,6 +2453,18 @@ function IdeaEditor({ id: editingId } = {}) {
                   {filling ? "AIが書いています…" : "AIで書く"}
                 </button>
               </div>
+              {aiErr && (
+                <div className="mt-2 p-2.5 rounded-md bg-rose-50 ring-1 ring-rose-200 text-[11.5px] text-rose-800 flex items-start gap-2">
+                  <Icon name="x" className="w-3.5 h-3.5 mt-0.5 shrink-0"/>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold">AI生成に失敗しました</div>
+                    <div className="text-[11px] text-rose-700 mt-0.5">理由: {aiErr.reason}{aiErr.raw ? ` — ${aiErr.raw}` : ""}</div>
+                  </div>
+                  <button onClick={()=>aiFill(f.key)} className="shrink-0 inline-flex items-center gap-1 px-2 h-6 rounded bg-rose-600 text-white text-[10.5px] font-bold hover:bg-rose-700">
+                    <Icon name="sparkles" className="w-3 h-3"/>再試行
+                  </button>
+                </div>
+              )}
               <textarea rows={4} value={form[f.key]} onChange={e=>upd(f.key, e.target.value)}
                 placeholder={f.ph}
                 className={`mt-2 w-full rounded-lg border focus:ring-2 outline-none px-3 py-2 text-[13px] leading-relaxed ${overChars ? "border-asahi-400 focus:border-asahi-500 focus:ring-asahi-100" : "border-ink-200 focus:border-ink-400 focus:ring-ink-100"} ${filling ? "blink" : ""}`}/>
@@ -2479,22 +2525,29 @@ function IdeaEditor({ id: editingId } = {}) {
             <div className="text-[13px] font-bold text-ink-900">引用するシーズ</div>
             <Badge tone="red">{linkedSeeds.length}</Badge>
           </div>
+          <input value={seedQ} onChange={e=>setSeedQ(e.target.value)} placeholder="コード/名称/カテゴリで検索"
+            className="w-full mb-2 px-2.5 h-8 rounded-md border border-ink-200 text-[11.5px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
           <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
-            {data.seeds.map(s => {
-              const on = linkedSeeds.includes(s.id);
-              return (
-                <button key={s.id} onClick={()=>toggleSeed(s.id)} className={`w-full flex items-center gap-2 p-2 rounded-lg transition text-left ${on ? "bg-asahi-50 ring-1 ring-asahi-200" : "hover:bg-ink-50"}`}>
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${on ? "bg-asahi-500 border-asahi-500 text-white" : "border-ink-300"}`}>
-                    {on && <Icon name="check" className="w-3 h-3"/>}
-                  </div>
-                  <div className="h-7 w-7 rounded bg-asahi-500 text-white text-[9px] font-extrabold flex items-center justify-center">{s.code}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11.5px] font-bold text-ink-900 truncate">{s.name}</div>
-                    <div className="text-[10px] text-ink-500 truncate">{s.category}</div>
-                  </div>
-                </button>
-              );
-            })}
+            {(() => {
+              const q = seedQ.toLowerCase().trim();
+              const filtered = data.seeds.filter(s => !q || (s.code||"").toLowerCase().includes(q) || (s.name||"").toLowerCase().includes(q) || (s.category||"").toLowerCase().includes(q));
+              if (filtered.length === 0) return <div className="px-2 py-3 text-[11px] text-ink-400">該当なし</div>;
+              return filtered.map(s => {
+                const on = linkedSeeds.includes(s.id);
+                return (
+                  <button key={s.id} onClick={()=>toggleSeed(s.id)} className={`w-full flex items-center gap-2 p-2 rounded-lg transition text-left ${on ? "bg-asahi-50 ring-1 ring-asahi-200" : "hover:bg-ink-50"}`}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${on ? "bg-asahi-500 border-asahi-500 text-white" : "border-ink-300"}`}>
+                      {on && <Icon name="check" className="w-3 h-3"/>}
+                    </div>
+                    <div className="h-7 w-7 rounded bg-asahi-500 text-white text-[9px] font-extrabold flex items-center justify-center">{s.code}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11.5px] font-bold text-ink-900 truncate">{s.name}</div>
+                      <div className="text-[10px] text-ink-500 truncate">{s.category}</div>
+                    </div>
+                  </button>
+                );
+              });
+            })()}
           </div>
         </Card>
 
@@ -2503,21 +2556,28 @@ function IdeaEditor({ id: editingId } = {}) {
             <div className="text-[13px] font-bold text-ink-900">引用する記事</div>
             <Badge tone="blue">{linkedArticles.length}</Badge>
           </div>
+          <input value={articleQ} onChange={e=>setArticleQ(e.target.value)} placeholder="タイトル/媒体名で検索"
+            className="w-full mb-2 px-2.5 h-8 rounded-md border border-ink-200 text-[11.5px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
           <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
-            {data.articles.map(a => {
-              const on = linkedArticles.includes(a.id);
-              return (
-                <button key={a.id} onClick={()=>toggleArticle(a.id)} className={`w-full flex items-start gap-2 p-2 rounded-lg transition text-left ${on ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-ink-50"}`}>
-                  <div className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center ${on ? "bg-sky-600 border-sky-600 text-white" : "border-ink-300"}`}>
-                    {on && <Icon name="check" className="w-3 h-3"/>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10.5px] text-ink-500 font-semibold">{a.source} · {a.date}</div>
-                    <div className="text-[11.5px] font-bold text-ink-900 line-clamp-2">{a.title}</div>
-                  </div>
-                </button>
-              );
-            })}
+            {(() => {
+              const q = articleQ.toLowerCase().trim();
+              const filtered = data.articles.filter(a => !q || (a.title||"").toLowerCase().includes(q) || (a.source||"").toLowerCase().includes(q));
+              if (filtered.length === 0) return <div className="px-2 py-3 text-[11px] text-ink-400">該当なし</div>;
+              return filtered.map(a => {
+                const on = linkedArticles.includes(a.id);
+                return (
+                  <button key={a.id} onClick={()=>toggleArticle(a.id)} className={`w-full flex items-start gap-2 p-2 rounded-lg transition text-left ${on ? "bg-sky-50 ring-1 ring-sky-200" : "hover:bg-ink-50"}`}>
+                    <div className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center ${on ? "bg-sky-600 border-sky-600 text-white" : "border-ink-300"}`}>
+                      {on && <Icon name="check" className="w-3 h-3"/>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10.5px] text-ink-500 font-semibold">{a.source} · {a.date}</div>
+                      <div className="text-[11.5px] font-bold text-ink-900 line-clamp-2">{a.title}</div>
+                    </div>
+                  </button>
+                );
+              });
+            })()}
           </div>
         </Card>
       </div>
@@ -2596,7 +2656,7 @@ function MePage() {
           <h1 className="text-2xl lg:text-[26px] font-extrabold tracking-tight text-ink-900">マイページ</h1>
           <p className="text-ink-500 text-[12.5px] mt-1">あなたの投稿・いいね・与えたフィードバックの記録</p>
         </div>
-        <Button icon="plus" onClick={()=>window.location.hash = "#/ideas/new"}>アイデアを書く</Button>
+        <Button icon="plus" onClick={()=>startBlankIdea(app, data)}>アイデアを書く</Button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -2621,8 +2681,8 @@ function MePage() {
                 <div className="font-extrabold text-ink-900 text-[15px]">最初のアイデアを書きましょう</div>
                 <p className="text-[12.5px] text-ink-600 mt-1 max-w-md mx-auto">萌芽RSSで気になる記事を見つけたら、「アイデアに変える」ボタンで2クリックで書き始められます。</p>
                 <div className="mt-4 flex gap-2 justify-center">
-                  <Button icon="plus" onClick={()=>window.location.hash = "#/ideas/new"}>新規作成</Button>
-                  <Button variant="outline" icon="rss" onClick={()=>window.location.hash = "#/dashboard"}>萌芽を浴びる</Button>
+                  <Button icon="plus" onClick={()=>startBlankIdea(app, data)}>新規作成</Button>
+                  <Button variant="outline" icon="rss" onClick={()=>window.location.hash = "#/dashboard"}>ニュースを見る</Button>
                 </div>
               </Card>
             )}
@@ -2987,9 +3047,9 @@ function OnboardingChecklist() {
     const myIdeas = (app.state.extraIdeas || []).filter(i => i.author === me.id);
     const myFB    = (app.state.extraFeedback || []).filter(f => f.author === me.id);
     return [
-      { id: "news", label: "今朝のニュースをチェック",          done: true,                  hint: "" },
+      { id: "idea", label: "アイデアを1本書く",                  done: myIdeas.length > 0,    href: "#/ideas",     hint: "白紙からでも、ニュース・シーズからでもOK" },
+      { id: "news", label: "今朝のニュースに目を通す",          done: true,                  hint: "" },
       { id: "save", label: "気になる記事を1本「保存」する",      done: savedCount > 0,        href: "#/dashboard", hint: "記事右下のしおりアイコンをタップ" },
-      { id: "idea", label: "アイデアを1本書く",                  done: myIdeas.length > 0,    href: "#/ideas/new" },
       { id: "fb",   label: "仲間のアイデアにコメントする",        done: myFB.length > 0,       href: "#/ideas",     hint: "詳細ページの『コメントする』から" },
     ];
   }, [app.state.savedArticles, app.state.extraIdeas, app.state.extraFeedback]);
@@ -3194,11 +3254,11 @@ function OnboardingModal() {
   }
 
   const STEPS = [
-    { kind: "intro",    eyebrow: "ASAHI R&D IDEATION HUB",   title: "SPROUT へようこそ",          body: "毎朝の世界の兆しから、自社シーズと結びついた事業アイデアを、仲間と磨いて役員レビューまで進める。— 4ステップで使い方を紹介します。" },
-    { kind: "news",     eyebrow: "STEP 1 ｜ 毎朝、世界の兆しを浴びる", title: "今朝のニュース",       body: "19のニュースソースから、世界の食・健康・サステナのトレンドを毎朝集めます。担当シーズと響き合う記事だけが「あなた向け」枠に並びます。" },
-    { kind: "idea",     eyebrow: "STEP 2 ｜ ワンクリックでアイデア化", title: "記事 → アイデア",     body: "気になった記事の「アイデアにする」を押すと、その記事と関連シーズが自動で紐づきます。9項目テンプレを埋めるだけ。" },
-    { kind: "feedback", eyebrow: "STEP 3 ｜ 仲間と磨く",                title: "コメント・改訂履歴",  body: "提出すれば関係者からコメントが届きます。誰の助言で、どこが、なぜ変わったかが、いつでも辿れます。" },
-    { kind: "review",   eyebrow: "STEP 4 ｜ 役員レビュー → 採択",       title: "判定 → 追跡",         body: "3名の役員が判定し、2名以上の承認で採択。マイルストーンと予算消化が、自動で追跡されます。" },
+    { kind: "intro",    eyebrow: "ASAHI R&D IDEATION HUB",   title: "SPROUT へようこそ",          body: "シーズ × ニーズで事業アイデアを連続的に生み出すための場所。思いついた瞬間に書ける/業界シグナルから着想する/類型・Phaseで整える、を1つのツールで。" },
+    { kind: "idea",     eyebrow: "STEP 1 ｜ 思いついたら書く",         title: "白紙からでも、ニュースからでも",   body: "サイドバーやダッシュボードの『アイデアを書く』を押せば即ドラフト作成 → 自動保存。記事やシーズはあとから任意で紐付け、AIで叩き台も生成できます。" },
+    { kind: "news",     eyebrow: "STEP 2 ｜ 兆しから着想する",         title: "今朝のニュース",       body: "国内外の食・健康・サステナのトレンドを毎朝集約。担当シーズに響く記事は『あなた向け』に並び、その場でアイデアに変換できます。" },
+    { kind: "feedback", eyebrow: "STEP 3 ｜ 類型 × Phase で整える",     title: "6類型 + ゲート基準",   body: "補填/シナジー/オプション/意義/再定義/プラットフォームから戦い方を選ぶと、AI生成の観点が変わります。Phaseと次ゲート基準のチェックリストで進捗を可視化。" },
+    { kind: "review",   eyebrow: "STEP 4 ｜ 仲間と磨いて役員へ",        title: "コメント → 判定 → 追跡",         body: "提出すると関係者からコメントが届き、改訂履歴が残ります。役員2名以上の承認で採択、予算とマイルストーンが自動追跡されます。" },
     { kind: "domains",  eyebrow: "もう少しだけ",                        title: "興味ある領域を選んでください", body: "朝のフィード上段にこの領域の記事を並べます。あとからいつでも変更できます。" },
   ];
 
