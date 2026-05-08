@@ -140,6 +140,88 @@ const ARCHETYPES = [
 const ARCHETYPES_BY_ID = Object.fromEntries(ARCHETYPES.map(a => [a.id, a]));
 
 // ---------------------------------------------------------------
+//  Phases & Gate Criteria — シーズ事業化6フェーズ
+// ---------------------------------------------------------------
+const PHASES = [
+  {
+    id: 1,
+    label: "Phase 1",
+    name: "アイデア開発",
+    stage: "エンジェル",
+    desc: "筋の良い + 実現可能な事業アイデアが複数ある",
+    nextGate: {
+      to: "Phase 2",
+      criteria: [
+        { id: "p1_seed_maturity",     label: "シーズの成熟度判定が完了している (TRL等)" },
+        { id: "p1_market_hypotheses", label: "応用市場の仮説が3つ以上ある" },
+        { id: "p1_tam",               label: "TAM 1,000億円以上の候補が1つ以上ある" },
+      ],
+    },
+  },
+  {
+    id: 2,
+    label: "Phase 2",
+    name: "市場翻訳・仮説検証",
+    stage: "エンジェル",
+    desc: "事業アイデアに市場のリアクションがつき、ポテンシャルの優劣が見える",
+    nextGate: {
+      to: "Phase 3",
+      criteria: [
+        { id: "p2_target_market",  label: "ターゲット市場が1-2つに確定" },
+        { id: "p2_loi",            label: "LoI相当の反応が5件以上" },
+        { id: "p2_lab_proven",     label: "プロダクト: ラボ実証済み" },
+        { id: "p2_customer_want",  label: "マーケット: 顧客が『欲しい』と表明" },
+      ],
+    },
+  },
+  {
+    id: 3,
+    label: "Phase 3",
+    name: "PoC 価値検証",
+    stage: "シード",
+    desc: "事業化スキーム判断のためのデータが揃っている",
+    nextGate: {
+      to: "事業化スキーム判断",
+      criteria: [
+        { id: "p3_pilot_proven",     label: "プロダクト: パイロット環境で実証済み" },
+        { id: "p3_paying_customer",  label: "マーケット: 有償顧客が存在" },
+        { id: "p3_ltv_cac",          label: "LTV/CAC ≧ 2倍の見込み" },
+        { id: "p3_gross_margin",     label: "粗利率 30% 以上の見通し" },
+      ],
+    },
+  },
+  {
+    id: 4,
+    label: "Phase 4",
+    name: "PoB 事業検証",
+    stage: "シリーズA〜",
+    desc: "事業として継続的に成長する仕組みが整っている",
+    nextGate: {
+      to: "Phase 5",
+      criteria: [
+        { id: "p4_revenue",            label: "年間売上 5 億円以上" },
+        { id: "p4_ltv_cac",            label: "LTV/CAC ≧ 3倍を実データで確認" },
+        { id: "p4_gross_margin",       label: "粗利率 30% 以上を達成" },
+        { id: "p4_mass_production",    label: "プロダクト: 量産可能" },
+        { id: "p4_business_expansion", label: "マーケット: 事業拡大" },
+      ],
+    },
+  },
+  {
+    id: 5,
+    label: "Phase 5",
+    name: "スケール × EXIT",
+    stage: "EXIT",
+    desc: "フルスケール量産+EXIT判断段階",
+    nextGate: null,
+  },
+];
+const PHASES_BY_ID = Object.fromEntries(PHASES.map(p => [p.id, p]));
+const ALL_GATE_CRITERIA = Object.fromEntries(
+  PHASES.flatMap(p => (p.nextGate?.criteria || []).map(c => [c.id, c]))
+);
+
+// ---------------------------------------------------------------
 //  State persistence (localStorage) — lightweight store
 // ---------------------------------------------------------------
 const LS_KEY = "sprout:v1";
@@ -1237,6 +1319,9 @@ function IdeaCard({ idea }) {
             {idea.archetype && ARCHETYPES_BY_ID[idea.archetype] && (
               <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-asahi-50 text-asahi-700 ring-1 ring-asahi-200">{ARCHETYPES_BY_ID[idea.archetype].num}{ARCHETYPES_BY_ID[idea.archetype].label}</span>
             )}
+            {idea.phase && PHASES_BY_ID[idea.phase] && (
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-sky-50 text-sky-700 ring-1 ring-sky-200">{PHASES_BY_ID[idea.phase].label}</span>
+            )}
             {idea.isExample && <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-ink-100 text-ink-700 ring-1 ring-ink-200">例 EXAMPLE</span>}
           </div>
           <span className="text-[10.5px] text-ink-400">{relTime(idea.updatedAt)}更新</span>
@@ -1329,6 +1414,9 @@ function IdeaDetailPage({ id }) {
             {idea.archetype && ARCHETYPES_BY_ID[idea.archetype] && (
               <Badge tone="red">{ARCHETYPES_BY_ID[idea.archetype].num}{ARCHETYPES_BY_ID[idea.archetype].label}</Badge>
             )}
+            {idea.phase && PHASES_BY_ID[idea.phase] && (
+              <Badge tone="blue">{PHASES_BY_ID[idea.phase].label}: {PHASES_BY_ID[idea.phase].name}</Badge>
+            )}
             {budget && <Badge tone="amber">依頼 ¥{budget.toFixed(1)}億</Badge>}
             {idea.isExample && <Badge tone="violet">例 EXAMPLE</Badge>}
             <span className="text-[11.5px] text-ink-500 ml-auto">作成 {idea.createdAt} · 更新 {idea.updatedAt}</span>
@@ -1351,6 +1439,44 @@ function IdeaDetailPage({ id }) {
             </div>
           </div>
         </Card>
+
+        {/* Phase gate progress */}
+        {idea.phase && PHASES_BY_ID[idea.phase] && PHASES_BY_ID[idea.phase].nextGate && (() => {
+          const ph = PHASES_BY_ID[idea.phase];
+          const gate = ph.nextGate;
+          const checks = idea.gateChecks || {};
+          const ck = gate.criteria.filter(c => checks[c.id]).length;
+          const tot = gate.criteria.length;
+          const allMet = ck === tot;
+          return (
+            <Card className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">PHASE GATE</div>
+                  <div className="text-[15px] font-extrabold text-ink-900 mt-0.5">{ph.label} → {gate.to}</div>
+                </div>
+                <span className={`text-[12px] font-bold px-2.5 py-1 rounded-full ring-1 ${
+                  allMet ? "bg-emerald-50 text-emerald-700 ring-emerald-200" :
+                  ck > 0 ? "bg-amber-50 text-amber-700 ring-amber-200" :
+                  "bg-ink-50 text-ink-600 ring-ink-200"
+                }`}>{ck} / {tot} 達成</span>
+              </div>
+              <div className="space-y-1">
+                {gate.criteria.map(c => {
+                  const on = !!checks[c.id];
+                  return (
+                    <div key={c.id} className="flex items-start gap-2 p-1.5">
+                      <div className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center shrink-0 ${on ? "bg-emerald-500 border-emerald-500 text-white" : "border-ink-300"}`}>
+                        {on && <Icon name="check" className="w-3 h-3"/>}
+                      </div>
+                      <div className={`text-[12.5px] ${on ? "text-emerald-900 line-through" : "text-ink-700"}`}>{c.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* Version history */}
         <HistoryPanel idea={idea} />
@@ -1667,6 +1793,78 @@ function ArchetypeSelector({ value, onChange }) {
 }
 
 // ---------------------------------------------------------------
+//  Component: Phase + Next Gate checklist
+// ---------------------------------------------------------------
+function PhaseGate({ phase, setPhase, gateChecks, setGateChecks }) {
+  const current = PHASES_BY_ID[phase] || null;
+  const gate = current?.nextGate;
+  const checked = gate?.criteria.filter(c => gateChecks[c.id]).length || 0;
+  const total = gate?.criteria.length || 0;
+  const allMet = total > 0 && checked === total;
+  return (
+    <Card className="p-5">
+      <div className="mb-3">
+        <label className="text-[11px] tracking-widest font-bold text-ink-400">事業フェーズ + 次ゲート判定基準</label>
+        <div className="text-[11.5px] text-ink-500 mt-0.5">今このアイデアがどの段階か。次のゲートで何が必要かをチェックリストで管理。</div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+        {PHASES.map(p => {
+          const on = phase === p.id;
+          return (
+            <button key={p.id} onClick={()=>setPhase(p.id)}
+              className={`text-left p-2.5 rounded-md border transition ${
+                on ? "border-asahi-500 bg-asahi-50 ring-2 ring-asahi-200" : "border-ink-200 hover:border-ink-300 hover:bg-ink-50"
+              }`}>
+              <div className="text-[9.5px] tracking-widest font-bold text-asahi-600">{p.label}</div>
+              <div className="text-[12px] font-extrabold text-ink-900 mt-0.5 leading-tight">{p.name}</div>
+              <div className="text-[9.5px] text-ink-500 mt-1">{p.stage}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      {current && (
+        <div className="mt-3 px-3 py-2 rounded-md bg-ink-50 text-[11.5px] text-ink-700">{current.desc}</div>
+      )}
+
+      {gate ? (
+        <div className="mt-4 pt-4 border-t border-ink-100">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[12.5px] font-bold text-ink-900">次ゲート判定基準 → {gate.to}</div>
+              <div className="text-[11px] text-ink-500 mt-0.5">役員レビューでこれが満たされているかが判断軸</div>
+            </div>
+            <span className={`text-[11.5px] font-bold px-2 py-1 rounded-full ring-1 ${
+              allMet ? "bg-emerald-50 text-emerald-700 ring-emerald-200" :
+              checked > 0 ? "bg-amber-50 text-amber-700 ring-amber-200" :
+              "bg-ink-50 text-ink-600 ring-ink-200"
+            }`}>{checked} / {total} 達成</span>
+          </div>
+          <div className="space-y-1">
+            {gate.criteria.map(c => {
+              const on = !!gateChecks[c.id];
+              return (
+                <button key={c.id} onClick={()=>setGateChecks({ ...gateChecks, [c.id]: !on })}
+                  className={`w-full flex items-start gap-2 p-2 rounded-md transition text-left ${on ? "bg-emerald-50/60" : "hover:bg-ink-50"}`}>
+                  <div className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center shrink-0 ${on ? "bg-emerald-500 border-emerald-500 text-white" : "border-ink-300"}`}>
+                    {on && <Icon name="check" className="w-3 h-3"/>}
+                  </div>
+                  <div className={`text-[12.5px] ${on ? "text-emerald-900 line-through" : "text-ink-800"}`}>{c.label}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 pt-4 border-t border-ink-100 text-[11.5px] text-ink-500">
+          このフェーズには次ゲートの判定基準は定義されていません(EXIT段階)。
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
 //  Page: Idea Editor (new)
 // ---------------------------------------------------------------
 function IdeaEditor({ id: editingId } = {}) {
@@ -1691,6 +1889,8 @@ function IdeaEditor({ id: editingId } = {}) {
         title:    existingIdea.title === "(無題)" ? "" : (existingIdea.title || ""),
         codename: existingIdea.codename === "UNTITLED" ? "" : (existingIdea.codename || ""),
         archetype: existingIdea.archetype || null,
+        phase:    existingIdea.phase || 1,
+        gateChecks: existingIdea.gateChecks || {},
         form: {
           problem:         f.problem || "",
           customer:        f.customer || "",
@@ -1708,7 +1908,7 @@ function IdeaEditor({ id: editingId } = {}) {
         },
       };
     }
-    const ctx = { articles: [], seeds: [], suggestion: null, title: "", codename: "", archetype: null, form: null };
+    const ctx = { articles: [], seeds: [], suggestion: null, title: "", codename: "", archetype: null, phase: 1, gateChecks: {}, form: null };
     if (query.article) ctx.articles.push(query.article);
     if (query.seed) ctx.seeds.push(query.seed);
     if (query.suggestion) {
@@ -1723,6 +1923,8 @@ function IdeaEditor({ id: editingId } = {}) {
   const [linkedSeeds, setLinkedSeeds] = useState(initCtx.seeds);
   const [linkedArticles, setLinkedArticles] = useState(initCtx.articles);
   const [archetype, setArchetype] = useState(initCtx.archetype);
+  const [phase, setPhase] = useState(initCtx.phase || 1);
+  const [gateChecks, setGateChecks] = useState(initCtx.gateChecks || {});
   const [form, setForm] = useState(initCtx.form || {
     problem: initCtx.suggestion ? initCtx.suggestion.rationale : "",
     customer: "",
@@ -1762,6 +1964,7 @@ function IdeaEditor({ id: editingId } = {}) {
         title: title || "(無題)",
         codename: codename || "UNTITLED",
         archetype: archetype || null,
+        phase, gateChecks,
         linkedSeeds, linkedArticles,
         format: formatBody,
       });
@@ -1769,7 +1972,7 @@ function IdeaEditor({ id: editingId } = {}) {
     }, 700);
     return () => clearTimeout(t);
   // eslint-disable-next-line
-  }, [editingId, title, codename, archetype, JSON.stringify(form), JSON.stringify(linkedSeeds), JSON.stringify(linkedArticles)]);
+  }, [editingId, title, codename, archetype, phase, JSON.stringify(gateChecks), JSON.stringify(form), JSON.stringify(linkedSeeds), JSON.stringify(linkedArticles)]);
 
   // Guard: editing requested but idea not found (or is sample) → redirect
   if (editingId && !existingIdea) {
@@ -1959,6 +2162,7 @@ function IdeaEditor({ id: editingId } = {}) {
         title: title || "(無題)",
         codename: codename || "UNTITLED",
         archetype: archetype || null,
+        phase, gateChecks,
         status,
         linkedSeeds, linkedArticles,
         format: formatBody,
@@ -1982,6 +2186,7 @@ function IdeaEditor({ id: editingId } = {}) {
       author: data.me.id,
       status,
       archetype: archetype || null,
+      phase, gateChecks,
       createdAt: today,
       updatedAt: today,
       likes: 0,
@@ -2034,6 +2239,8 @@ function IdeaEditor({ id: editingId } = {}) {
         </Card>
 
         <ArchetypeSelector value={archetype} onChange={setArchetype}/>
+
+        <PhaseGate phase={phase} setPhase={setPhase} gateChecks={gateChecks} setGateChecks={setGateChecks}/>
 
         <Card className="p-4 bg-asahi-50/40 ring-1 ring-asahi-200">
           <div className="flex items-center gap-3">
