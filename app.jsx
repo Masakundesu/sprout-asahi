@@ -950,11 +950,69 @@ function Dashboard() {
     return out.slice(0, 60); // cap UI
   }, [baseArticles, cat, sort, seedFilter, onlyLive]);
 
+  // 自分の未完ドラフト (続きを書く用)
+  const myDrafts = useMemo(() => {
+    return (app.state.extraIdeas || [])
+      .filter(i => i.author === data.me.id && i.status === "ドラフト")
+      .sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+      .slice(0, 3);
+  }, [app.state.extraIdeas]);
+
   return (
     <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-6">
       <OnboardingChecklist/>
+
+      {/* Hero: アイデアを書く (3エントリ) */}
+      <Card className="p-5 lg:p-6 bg-gradient-to-br from-asahi-50 to-white ring-1 ring-asahi-200">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">START WRITING</div>
+            <h2 className="text-[20px] lg:text-[22px] font-extrabold tracking-tight text-ink-900 mt-1">アイデアを書く</h2>
+            <p className="text-[12.5px] text-ink-600 mt-1">思いついたらまず書く。後で記事やシーズを紐付けて深められます。</p>
+          </div>
+          <button onClick={() => window.location.hash = "#/ideas/new"}
+            className="inline-flex items-center gap-1.5 px-4 h-10 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-bold transition">
+            <Icon name="plus" className="w-4 h-4"/> 白紙から書く
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11.5px]">
+          <a href="#/ideas/new" className="p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 transition">
+            <div className="font-bold text-ink-900 flex items-center gap-1.5"><Icon name="pencil" className="w-3.5 h-3.5"/>白紙から書く</div>
+            <div className="text-ink-500 mt-0.5">タイトルだけでもOK。あとから埋める</div>
+          </a>
+          <a href="#/seeds" className="p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 transition">
+            <div className="font-bold text-ink-900 flex items-center gap-1.5">🧪 シーズから着想</div>
+            <div className="text-ink-500 mt-0.5">REAL-ZERO等の自社技術から発想</div>
+          </a>
+          <a href="#dashboard-news" onClick={(e)=>{e.preventDefault(); document.getElementById("dashboard-news")?.scrollIntoView({behavior:"smooth"});}} className="p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 hover:bg-asahi-50/40 transition">
+            <div className="font-bold text-ink-900 flex items-center gap-1.5">📄 ニュースから着想</div>
+            <div className="text-ink-500 mt-0.5">業界シグナルと自社シーズを掛け算</div>
+          </a>
+        </div>
+      </Card>
+
+      {/* 続きを書く: 自分の未完ドラフト */}
+      {myDrafts.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[14px] font-extrabold text-ink-900">続きを書く</h3>
+            <a href="#/ideas" className="text-[11.5px] text-ink-500 hover:text-ink-900">すべて見る →</a>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {myDrafts.map(d => (
+              <a key={d.id} href={`#/ideas/${d.id}/edit`}
+                 className="p-3 rounded-lg bg-white ring-1 ring-ink-100 hover:ring-asahi-300 transition">
+                <div className="text-[10px] tracking-widest font-bold text-asahi-600">#{(d.codename || "UNTITLED").toUpperCase()}</div>
+                <div className="text-[12.5px] font-bold text-ink-900 line-clamp-2 mt-0.5">{d.title || "(無題)"}</div>
+                <div className="text-[10.5px] text-ink-400 mt-1.5">{relTime(d.updatedAt)}更新</div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Title + meta */}
-      <div>
+      <div id="dashboard-news">
         <h1 className="text-[22px] lg:text-[26px] font-extrabold tracking-tight text-ink-900">今朝のニュース</h1>
         <div className="mt-1.5 flex items-center gap-2 text-[12px] text-ink-500">
           {live.loading ? (
@@ -1290,8 +1348,19 @@ function IdeasPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {ideas.map(i => <IdeaCard key={i.id} idea={i}/>)}
             {ideas.length === 0 && (
-              <div className="col-span-full py-16 text-center text-ink-500 text-[13px]">
-                {tab === "mine" ? "まだアイデアを書いていません。" : "該当するアイデアはありません。"}
+              <div className="col-span-full py-12 text-center">
+                <div className="text-[13.5px] text-ink-700 font-bold mb-1">
+                  {tab === "mine" ? "まだアイデアを書いていません" : "該当するアイデアはありません"}
+                </div>
+                {tab === "mine" && (
+                  <>
+                    <div className="text-[12px] text-ink-500 mb-4">思いついたまま書いてOK。タイトルだけからでも始められます。</div>
+                    <button onClick={() => window.location.hash = "#/ideas/new"}
+                      className="inline-flex items-center gap-1.5 px-4 h-10 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 text-[13px] font-bold transition">
+                      <Icon name="plus" className="w-4 h-4"/> 新規作成
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1984,51 +2053,59 @@ function IdeaEditor({ id: editingId } = {}) {
   }
 
   const fieldOrder = [
-    { key:"problem",         num:"01", label:"Why now (構造変化と緊急性)",
+    { key:"problem",         num:"01", group:"A", label:"Why now (構造変化と緊急性)",
       hint:"今何が変わったか + なぜ今やるべきか + 数値シグナル1つ",
       ph:"例: GLP-1普及で外食ビール客単価が前年比 -8% (出典: 帝国DB)。一方ノンアル来店動機は同期間で +24%…",
       chars:180 },
-    { key:"customer",        num:"02", label:"顧客と痛み (1人称JTBD)",
+    { key:"customer",        num:"02", group:"A", label:"顧客と痛み (1人称JTBD)",
       hint:"1人のペルソナを具体化、JTBD構文、既存代替案の不満1つ",
       ph:"例: 都市部 32 歳・年収 800 万円・週3で会食する管理職。『接待後にもう一杯欲しいが、翌朝のパフォーマンスを落とせない』時に…",
       chars:200 },
-    { key:"solution",        num:"03", label:"提供価値 / プロダクト",
+    { key:"solution",        num:"03", group:"B", label:"提供価値 / プロダクト",
       hint:"便益→機能の順。シーズコードを必ず引用",
       ph:"例: 飲む時間を、自分の状態を上げる時間に変える気分デザイン・プレミアムノンアル。REAL-ZERO で…",
       chars:200 },
-    { key:"unfairAdvantage", num:"04", label:"自社シーズの効き (後発再現性)",
+    { key:"unfairAdvantage", num:"04", group:"B", label:"自社シーズの効き (後発再現性)",
       hint:"再現できない理由を3つ。シーズコード必須。再現に何年か",
       ph:"例: REAL-ZERO 由来の官能データ 20 年分は再現に最低 8 年。Hop-β は特許出願中…",
       chars:180 },
-    { key:"marketSize",      num:"05", label:"TAM / SAM / SOM (数値根拠付き)",
+    { key:"marketSize",      num:"05", group:"C", label:"TAM / SAM / SOM (数値根拠付き)",
       hint:"3段階の数値 + 各々の出典/推定根拠",
       ph:"例: TAM 国内+海外で $30.5B (出典: Euromonitor 2030)。SAM プレミアム機能性ノンアルで $0.8B…",
       chars:260 },
-    { key:"goToMarket",      num:"06", label:"GTM (Phase × チャネル × 獲得KPI)",
+    { key:"goToMarket",      num:"06", group:"D", label:"GTM (Phase × チャネル × 獲得KPI)",
       hint:"Phase 1〜3、各々のチャネル+獲得KPI(数値)、検証仮説1つ",
       ph:"例: Phase 1 (〜2026 Q4) 都内ゼロプルーフバー 5 店舗、KPI 月販 8,000 本…",
       chars:240 },
-    { key:"businessModel",   num:"07", label:"Unit Economics (LTV-CAC)",
+    { key:"businessModel",   num:"07", group:"D", label:"Unit Economics (LTV-CAC)",
       hint:"単価×頻度×原価、LTV/CAC/回収期間、スケール時のレバー",
       ph:"例: 単価 480 円 × 月 6 本 × 12 ヶ月 = LTV 34,560 円。CAC 8,000 円、回収 4.5 ヶ月…",
       chars:220 },
-    { key:"competitors",     num:"08", label:"競合ポジショニング (2軸マップ)",
+    { key:"competitors",     num:"08", group:"D", label:"競合ポジショニング (2軸マップ)",
       hint:"軸を2つ明示、競合3社の位置、自社が取るスポット",
       ph:"例: 縦軸『機能性の強度』× 横軸『風味の本格度』。Athletic Brewing は本格度高だが機能性は弱い…",
       chars:200 },
-    { key:"roadmap",         num:"09", label:"ロードマップ & 検証実験",
+    { key:"roadmap",         num:"09", group:"E", label:"ロードマップ & 検証実験",
       hint:"Phase毎にマイルストーン+検証仮説+成功指標+Kill criteria",
       ph:"例: Phase 1 (2026 Q3-Q4) プロト 5 SKU、外食 5 店舗テスト。仮説『月 8,000 本売れる』。Kill: 月販 4,000 本未満…",
       chars:280 },
-    { key:"risks",           num:"10", label:"リスクと打ち手 (Mitigation)",
+    { key:"risks",           num:"10", group:"E", label:"リスクと打ち手 (Mitigation)",
       hint:"上位3リスク (市場/技術/組織)、影響度+確率、具体的な打ち手",
       ph:"例: ①機能性表示遅延 (影響:大/確率:中 — 打ち手: 申請を 2026 Q1 前倒し、薬事 1 名専任)…",
       chars:220 },
-    { key:"ask",             num:"11", label:"Ask (予算・人員・Go/No-Go ゲート)",
+    { key:"ask",             num:"11", group:"E", label:"Ask (予算・人員・Go/No-Go ゲート)",
       hint:"予算内訳、FTEと職種、Go/No-Goゲートの時期と判定基準",
       ph:"例: 予算 1.8 億円 (R&D 0.8 / マーケ 0.6 / 人件費 0.4)。4.5 FTE。Go/No-Go 2026 年 12 月末…",
       chars:160 },
   ];
+
+  const FIELD_GROUPS = {
+    A: { label:"1. 課題と顧客",       desc:"なぜ今やる + 誰の何が痛い" },
+    B: { label:"2. 提供価値と差別化", desc:"何を出して、なぜ後発再現できないか" },
+    C: { label:"3. 市場規模",         desc:"TAM / SAM / SOM の3段階" },
+    D: { label:"4. ビジネス設計",     desc:"どう売り、どう儲け、誰を相手にするか" },
+    E: { label:"5. 実行計画",         desc:"いつ何を確かめ、何が必要か" },
+  };
 
   function upd(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function toggleSeed(id) { setLinkedSeeds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
@@ -2221,7 +2298,9 @@ function IdeaEditor({ id: editingId } = {}) {
             )}
           </div>
           <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">{editingId ? "アイデアを編集" : "新しいアイデアを書く"}</h1>
-          <p className="text-ink-600 text-[13.5px] mt-1">ASAHIの新規事業フォーマットに沿って書きます。右で記事やシーズを引用できます。{editingId && " 入力は自動保存されます。"}</p>
+          <p className="text-ink-600 text-[13.5px] mt-1">{editingId
+            ? "入力は自動で保存されます。記事やシーズは右で任意に紐付けられます。"
+            : "思いついたまま書いてOK。タイトルだけでもまず書き始めて、記事・シーズ・類型・Phaseはあとから埋められます。"}</p>
         </div>
 
         <Card className="p-5">
@@ -2259,13 +2338,23 @@ function IdeaEditor({ id: editingId } = {}) {
           </div>
         </Card>
 
-        {fieldOrder.map(f => {
+        {fieldOrder.map((f, i) => {
           const len = (form[f.key] || "").length;
           const overChars = f.chars && len > f.chars;
           const filling = !!aiFilling[f.key];
           const critique = aiCritiques[f.key];
+          const prevGroup = i > 0 ? fieldOrder[i-1].group : null;
+          const showGroupHeader = f.group && f.group !== prevGroup;
+          const groupMeta = showGroupHeader ? FIELD_GROUPS[f.group] : null;
           return (
-            <Card key={f.key} className="p-5">
+            <Fragment key={f.key}>
+            {showGroupHeader && groupMeta && (
+              <div className="pt-3 first:pt-0">
+                <div className="text-[11px] tracking-widest font-bold text-asahi-600">{groupMeta.label}</div>
+                <div className="text-[11px] text-ink-500 mt-0.5">{groupMeta.desc}</div>
+              </div>
+            )}
+            <Card className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
@@ -2301,6 +2390,7 @@ function IdeaEditor({ id: editingId } = {}) {
                 </details>
               )}
             </Card>
+            </Fragment>
           );
         })}
 
