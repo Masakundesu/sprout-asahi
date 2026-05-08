@@ -13,6 +13,133 @@ function todayISO() { return new Date().toISOString().slice(0, 10); }
 function nowISOMin() { return new Date().toISOString().slice(0, 16).replace("T", " "); }
 
 // ---------------------------------------------------------------
+//  6類型 (新規事業のアーキタイプ) — 役員向けPhase0スキームに対応
+// ---------------------------------------------------------------
+const ARCHETYPES = [
+  {
+    id: "compensation",
+    num: "①",
+    label: "補填型",
+    subtitle: "既存事業縮退分を埋める",
+    desc: "本業の構造的縮退を新規事業で補う。株主への成長コミットを守るための『引き算と足し算』。",
+    fit: "◎ 本命",
+    fitTone: "asahi",
+    where: "本業に関連する隣接領域",
+    when: "10年スパン (縮退カーブから逆算)",
+    howMuch: "1,000〜3,000億円規模 / 3-5本",
+    howMany: "本柱3-5本 + 予備3-5本",
+    kpiLogic: "(既存事業10年後予測売上減少額) ×(成長コミット率) = 必要な新規事業売上。アサヒ国内ビール酒類年率▲2.5%なら10年で約▲1,000億、+3%成長コミットには10年後 +1,500〜2,000億円/年が必要。",
+    examples: [
+      { name: "MIXI モンスト", note: "SNS縮退をスマホゲーム単品集中投資で補填、ピーク時 売上2,089億円" },
+      { name: "キリンHD ヘルスサイエンス", note: "ビール縮退補填にファンケル 2,300億+Blackmores 1,700億" },
+      { name: "JT Ploom", note: "紙巻縮退を加熱式で補填、2025-27年 6,500億円投資" },
+    ],
+    pitfall: "焦りで本業から離れすぎたM&Aに走り、減損リスク (コニカミノルタ事務機→ヘルスケアで1,166億のれん減損)",
+  },
+  {
+    id: "synergy",
+    num: "②",
+    label: "シナジー型",
+    subtitle: "本業の価値を上げる",
+    desc: "新規事業単体の利益ではなく、本業の顧客単価・LTV・チャネル強化・ブランド価値で成果を測る。本業のマージンを守る・高める。",
+    fit: "◎ 本命",
+    fitTone: "asahi",
+    where: "本業とのシナジーが明確な隣接領域 (顧客・SC・流通網の活用が必須)",
+    when: "3-5年で本業指標に反映",
+    howMuch: "200-500億円規模 / 事業 + 本業への波及効果",
+    howMany: "本業ごとに1-3本",
+    kpiLogic: "本業ARPU向上率 × 既存顧客数、チャネル損失防止、顧客継続率。新規事業の独立PLではなく『本業への波及効果』で測る。",
+    examples: [
+      { name: "TOYOTA KINTO", note: "単発販売→継続課金接点、第7期 売上587億円で初の黒字化" },
+      { name: "ブリヂストン Tirematics", note: "タイヤ+モニタリング+摩耗予測で本業のプレミアム化" },
+      { name: "ヤマト EAZY", note: "宅急便本業を守りつつECでの顧客離脱を防止" },
+    ],
+    pitfall: "本業との関係が曖昧だと『誰も守らない事業』になる。最初に本業強化型と宣言する必須。収益KPI偏重で本業効果を見落とす罠。",
+  },
+  {
+    id: "option",
+    num: "③",
+    label: "オプション型",
+    subtitle: "将来不確実性への権利",
+    desc: "今は赤字でも、将来の規制変化・技術破壊・市場急成長に『参加する権利』を確保する投資。少額分散+トリガー条件設計。",
+    fit: "○ 部分採用",
+    fitTone: "blue",
+    where: "技術・規制・顧客行動が急変する未踏領域 (精密発酵、ディープテック、気候テック)",
+    when: "7-15年の超長期、3年ごと継続/拡大/撤退判定",
+    howMuch: "1投資 10-50億円 × 10-20案件の分散",
+    howMany: "年間10-20件のポートフォリオ (99%撤退前提、1-2%の大成功で全体正当化)",
+    kpiLogic: "リアルオプション思考。『うまくいったら本格参入する権利』を最小コストで確保。各オプションに『このKPIで本格投資に昇格、それ以外はクローズ』のトリガーを事前設定。",
+    examples: [
+      { name: "ソニー CMOSイメージセンサー", note: "1996年投資→25年で世界シェア53%" },
+      { name: "味の素 ABF", note: "アミノ酸副産物→半導体絶縁膜で世界シェアほぼ100%" },
+      { name: "トヨタ Woven City", note: "2020年構想→2025年本格始動、未来モビリティへの長期オプション" },
+    ],
+    pitfall: "『実験のための実験』で実装に繋がらない罠。トリガー条件未設定で延々と続けるリスク。",
+  },
+  {
+    id: "purpose",
+    num: "④",
+    label: "意義型",
+    subtitle: "社会課題で稼ぐ",
+    desc: "CO2削減・高齢化・食糧安保などを解決し、財務リターンと社会インパクトを両立。カーボンクレジット・ESG資金・政府連携・ブランド価値が収益源。",
+    fit: "◎ 本命",
+    fitTone: "asahi",
+    where: "ネットゼロ、循環経済、ヘルスエイジング、食料安保、グローバルサウス",
+    when: "5-15年で社会実装、カーボンクレジット市場と連動",
+    howMuch: "100-500億円規模 / 事業 + 政府・国際機関資金活用",
+    howMany: "本業シナジーがある1-3本に集中",
+    kpiLogic: "ロジックモデル(インプット→アクティビティ→アウトプット→アウトカム→インパクト)。財務KPIとインパクトKPIを併用。",
+    examples: [
+      { name: "明治 ザ・チョコレート", note: "フェアトレード×プレミアム×デザインで1年3,000万個販売" },
+      { name: "パナソニック GREEN IMPACT", note: "2024年度CO2削減貢献量 5,325万トン (目標を大幅超過)" },
+      { name: "アサヒ バイオサイクル", note: "国際的にも注目、新興国展開とカーボンクレジット連動可" },
+    ],
+    pitfall: "『見せかけの社会貢献』(インパクトウォッシング)。逆に財務一辺倒で『削減貢献量を売る道具』に矮小化するのも失敗。",
+  },
+  {
+    id: "redefinition",
+    num: "⑤",
+    label: "再定義型",
+    subtitle: "本業の定義を変える",
+    desc: "本業そのものを根本から定義し直し、非コア事業の売却+新コア領域への集中投資を同時実行。最も大胆でCEOが主導するトップダウン型。",
+    fit: "△ 長期オプション",
+    fitTone: "slate",
+    where: "現在の主力事業群そのもの (売却益で新事業に集中投資)",
+    when: "10-15年の構造変革、CEO交代3-4回を貫く",
+    howMuch: "売却益 1,000-5,000億円の再投資 + 新規投資 数千億円",
+    howMany: "本業→新本業への移行 (1:1の交代)",
+    kpiLogic: "既存事業そのものを縮退・売却する意思決定を含む。『何を本業と呼ぶか』の定義を変える。",
+    examples: [
+      { name: "ソニー", note: "ハード→エンタメ/金融、エンタメ3事業で売上6割" },
+      { name: "JSR", note: "合成ゴム売却→半導体材料集中、約9,000億円規模TOBで非公開化" },
+      { name: "オリンパス", note: "カメラ売却→医療特化、科学事業を約4,276億円で売却" },
+    ],
+    pitfall: "CEO交代リスク。日本企業の株主・従業員・系列構造で10年貫くのが難しい。AQI単独では決定不可、HD取締役会・CEO案件。",
+  },
+  {
+    id: "platform",
+    num: "⑥",
+    label: "プラットフォーム型",
+    subtitle: "生態系を握る",
+    desc: "業界OSを提供し、取引・データ・サービスの基盤を握る。ネットワーク効果が効く領域で有効。",
+    fit: "△ 限定採用",
+    fitTone: "slate",
+    where: "断片化した参加者が多く、自社が中核アセット (顧客ID・物理インフラ・免許) を持つ場面",
+    when: "立ち上げ3-5年、ネットワーク効果顕在化に5-8年",
+    howMuch: "500-2,000億円規模 (販促+システム+JV出資)",
+    howMany: "本柱1-2本 (単一PFに集中投資)",
+    kpiLogic: "参加事業者数 × 取引量 (GMV) × Take Rate + データ収益。鶏卵問題を超えるティッピングポイントまでの距離を計測。",
+    examples: [
+      { name: "PayPay", note: "2025年7月 登録7,000万人、2024年度決済取扱高12.5兆円" },
+      { name: "コマツ EARTHBRAIN", note: "コマツ+ドコモ+ソニー+野村総研JV、建設業界PF" },
+      { name: "リクルート×Indeed PLUS", note: "国内求職者の7割リーチする求人配信PF" },
+    ],
+    pitfall: "鶏卵問題で立ち上がらないリスク。自社利益優先で他社が離れると破綻。消費者向けPFは飲料単独では困難。",
+  },
+];
+const ARCHETYPES_BY_ID = Object.fromEntries(ARCHETYPES.map(a => [a.id, a]));
+
+// ---------------------------------------------------------------
 //  State persistence (localStorage) — lightweight store
 // ---------------------------------------------------------------
 const LS_KEY = "sprout:v1";
@@ -1107,6 +1234,9 @@ function IdeaCard({ idea }) {
         <div className="flex items-start justify-between gap-3">
           <div className="flex gap-1.5 flex-wrap">
             <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${status?.color || "bg-ink-100 text-ink-700 border-ink-200"}`}>{idea.status}</span>
+            {idea.archetype && ARCHETYPES_BY_ID[idea.archetype] && (
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-asahi-50 text-asahi-700 ring-1 ring-asahi-200">{ARCHETYPES_BY_ID[idea.archetype].num}{ARCHETYPES_BY_ID[idea.archetype].label}</span>
+            )}
             {idea.isExample && <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-ink-100 text-ink-700 ring-1 ring-ink-200">例 EXAMPLE</span>}
           </div>
           <span className="text-[10.5px] text-ink-400">{relTime(idea.updatedAt)}更新</span>
@@ -1196,6 +1326,9 @@ function IdeaDetailPage({ id }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${status?.color || "bg-ink-100 text-ink-700 border-ink-200"}`}>{currentStatus}</span>
             <Badge tone="slate">#{idea.codename}</Badge>
+            {idea.archetype && ARCHETYPES_BY_ID[idea.archetype] && (
+              <Badge tone="red">{ARCHETYPES_BY_ID[idea.archetype].num}{ARCHETYPES_BY_ID[idea.archetype].label}</Badge>
+            )}
             {budget && <Badge tone="amber">依頼 ¥{budget.toFixed(1)}億</Badge>}
             {idea.isExample && <Badge tone="violet">例 EXAMPLE</Badge>}
             <span className="text-[11.5px] text-ink-500 ml-auto">作成 {idea.createdAt} · 更新 {idea.updatedAt}</span>
@@ -1442,6 +1575,98 @@ function FeedbackThread({ ideaId, threads }) {
 }
 
 // ---------------------------------------------------------------
+//  Component: Archetype Selector — 6類型から戦い方を1つ選ぶ
+// ---------------------------------------------------------------
+function ArchetypeSelector({ value, onChange }) {
+  const selected = value ? ARCHETYPES_BY_ID[value] : null;
+  const fitColors = {
+    asahi: "bg-asahi-50 text-asahi-700 ring-asahi-200",
+    blue:  "bg-sky-50 text-sky-700 ring-sky-200",
+    slate: "bg-ink-50 text-ink-600 ring-ink-200",
+  };
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <label className="text-[11px] tracking-widest font-bold text-ink-400">この案の戦い方 (類型)</label>
+          <div className="text-[11.5px] text-ink-500 mt-0.5">6類型から1つ選ぶと、AI生成の観点・KPIロジック・参考事例が変わります。</div>
+        </div>
+        {selected && (
+          <button onClick={()=>onChange(null)} className="text-[11px] text-ink-500 hover:text-ink-900 inline-flex items-center gap-1">
+            <Icon name="x" className="w-3 h-3"/>選択解除
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+        {ARCHETYPES.map(a => {
+          const on = value === a.id;
+          return (
+            <button key={a.id} onClick={()=>onChange(on ? null : a.id)}
+              className={`text-left p-3 rounded-lg border transition ${
+                on
+                  ? "border-asahi-500 bg-asahi-50 ring-2 ring-asahi-200"
+                  : "border-ink-200 hover:border-ink-300 hover:bg-ink-50"
+              }`}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[14px] font-extrabold text-asahi-600">{a.num}</span>
+                <span className="text-[13px] font-extrabold text-ink-900">{a.label}</span>
+              </div>
+              <div className="text-[10.5px] text-ink-600 mt-0.5 line-clamp-2 leading-snug">{a.subtitle}</div>
+              <div className={`mt-2 inline-block text-[9.5px] font-bold px-1.5 py-0.5 rounded ring-1 ${fitColors[a.fitTone] || fitColors.slate}`}>
+                アサヒ適合度 {a.fit}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {selected && (
+        <div className="mt-4 pt-4 border-t border-ink-100 space-y-3">
+          <div className="text-[12.5px] text-ink-700 leading-relaxed">{selected.desc}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11.5px]">
+            <div>
+              <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-0.5">WHERE</div>
+              <div className="text-ink-700">{selected.where}</div>
+            </div>
+            <div>
+              <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-0.5">WHEN</div>
+              <div className="text-ink-700">{selected.when}</div>
+            </div>
+            <div>
+              <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-0.5">HOW MUCH</div>
+              <div className="text-ink-700">{selected.howMuch}</div>
+            </div>
+            <div>
+              <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-0.5">HOW MANY</div>
+              <div className="text-ink-700">{selected.howMany}</div>
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-1">KPIロジック</div>
+            <div className="text-[11.5px] text-ink-700 leading-relaxed bg-ink-50 rounded-md p-2.5">{selected.kpiLogic}</div>
+          </div>
+          <div>
+            <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-1.5">参考事例</div>
+            <div className="space-y-1.5">
+              {selected.examples.map((ex, i) => (
+                <div key={i} className="text-[11.5px] text-ink-700 flex gap-2">
+                  <span className="font-bold text-asahi-700 shrink-0">{ex.name}</span>
+                  <span className="text-ink-600">— {ex.note}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] tracking-widest font-bold text-ink-400 mb-1">典型的落とし穴</div>
+            <div className="text-[11.5px] text-ink-700 leading-relaxed">{selected.pitfall}</div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------
 //  Page: Idea Editor (new)
 // ---------------------------------------------------------------
 function IdeaEditor({ id: editingId } = {}) {
@@ -1465,6 +1690,7 @@ function IdeaEditor({ id: editingId } = {}) {
         suggestion: null,
         title:    existingIdea.title === "(無題)" ? "" : (existingIdea.title || ""),
         codename: existingIdea.codename === "UNTITLED" ? "" : (existingIdea.codename || ""),
+        archetype: existingIdea.archetype || null,
         form: {
           problem:         f.problem || "",
           customer:        f.customer || "",
@@ -1482,7 +1708,7 @@ function IdeaEditor({ id: editingId } = {}) {
         },
       };
     }
-    const ctx = { articles: [], seeds: [], suggestion: null, title: "", codename: "", form: null };
+    const ctx = { articles: [], seeds: [], suggestion: null, title: "", codename: "", archetype: null, form: null };
     if (query.article) ctx.articles.push(query.article);
     if (query.seed) ctx.seeds.push(query.seed);
     if (query.suggestion) {
@@ -1496,6 +1722,7 @@ function IdeaEditor({ id: editingId } = {}) {
   const [codename, setCodename] = useState(initCtx.codename || (initCtx.suggestion ? initCtx.suggestion.title.split(/[ 　-ー『』]/).filter(Boolean)[0] : ""));
   const [linkedSeeds, setLinkedSeeds] = useState(initCtx.seeds);
   const [linkedArticles, setLinkedArticles] = useState(initCtx.articles);
+  const [archetype, setArchetype] = useState(initCtx.archetype);
   const [form, setForm] = useState(initCtx.form || {
     problem: initCtx.suggestion ? initCtx.suggestion.rationale : "",
     customer: "",
@@ -1534,6 +1761,7 @@ function IdeaEditor({ id: editingId } = {}) {
       app.updateIdea(editingId, {
         title: title || "(無題)",
         codename: codename || "UNTITLED",
+        archetype: archetype || null,
         linkedSeeds, linkedArticles,
         format: formatBody,
       });
@@ -1541,7 +1769,7 @@ function IdeaEditor({ id: editingId } = {}) {
     }, 700);
     return () => clearTimeout(t);
   // eslint-disable-next-line
-  }, [editingId, title, codename, JSON.stringify(form), JSON.stringify(linkedSeeds), JSON.stringify(linkedArticles)]);
+  }, [editingId, title, codename, archetype, JSON.stringify(form), JSON.stringify(linkedSeeds), JSON.stringify(linkedArticles)]);
 
   // Guard: editing requested but idea not found (or is sample) → redirect
   if (editingId && !existingIdea) {
@@ -1629,12 +1857,24 @@ function IdeaEditor({ id: editingId } = {}) {
     let txt = "";
     let critique = "";
     try {
+      const archetypeMeta = archetype ? ARCHETYPES_BY_ID[archetype] : null;
       const r = await fetch("/api/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           field: k,
           title, codename,
+          archetype: archetypeMeta ? {
+            id: archetypeMeta.id,
+            label: `${archetypeMeta.num}${archetypeMeta.label}`,
+            subtitle: archetypeMeta.subtitle,
+            desc: archetypeMeta.desc,
+            kpiLogic: archetypeMeta.kpiLogic,
+            where: archetypeMeta.where,
+            when: archetypeMeta.when,
+            howMuch: archetypeMeta.howMuch,
+            examples: archetypeMeta.examples,
+          } : null,
           linkedSeeds: seedDetails,
           linkedArticles: articleDetails,
           existingFields: existing,
@@ -1718,6 +1958,7 @@ function IdeaEditor({ id: editingId } = {}) {
       app.updateIdea(editingId, {
         title: title || "(無題)",
         codename: codename || "UNTITLED",
+        archetype: archetype || null,
         status,
         linkedSeeds, linkedArticles,
         format: formatBody,
@@ -1740,6 +1981,7 @@ function IdeaEditor({ id: editingId } = {}) {
       title: title || "(無題)",
       author: data.me.id,
       status,
+      archetype: archetype || null,
       createdAt: today,
       updatedAt: today,
       likes: 0,
@@ -1790,6 +2032,8 @@ function IdeaEditor({ id: editingId } = {}) {
             </div>
           )}
         </Card>
+
+        <ArchetypeSelector value={archetype} onChange={setArchetype}/>
 
         <Card className="p-4 bg-asahi-50/40 ring-1 ring-asahi-200">
           <div className="flex items-center gap-3">

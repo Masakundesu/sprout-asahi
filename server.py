@@ -662,6 +662,20 @@ FEW_SHOT_EXAMPLES = {
 }
 
 
+def _archetype_block(arch: dict) -> str:
+    """Render selected archetype context (or empty if none)."""
+    if not arch:
+        return "(類型未選択 — 一般的な観点で執筆)"
+    examples = arch.get("examples") or []
+    ex_lines = "\n".join(f"  - {ex.get('name', '')}: {ex.get('note', '')}" for ex in examples[:3])
+    return f"""この案の戦い方: 【{arch.get('label', '')}】 — {arch.get('subtitle', '')}
+類型の定義: {arch.get('desc', '')}
+KPIロジック (この類型では数値はこう組み立てる): {arch.get('kpiLogic', '')}
+規模感: WHERE={arch.get('where', '')} / WHEN={arch.get('when', '')} / HOWMUCH={arch.get('howMuch', '')}
+参考事例 (構造を参考に、内容は流用禁止):
+{ex_lines}"""
+
+
 def _draft_prompt(field: str, payload: dict) -> str:
     crit = FIELD_CRITERIA.get(field)
     if not crit:
@@ -671,6 +685,7 @@ def _draft_prompt(field: str, payload: dict) -> str:
     seeds = payload.get("linkedSeeds") or []
     articles = payload.get("linkedArticles") or []
     existing = payload.get("existingFields") or {}
+    archetype = payload.get("archetype") or None
 
     must = "\n".join(f"  - {b}" for b in crit["must_include"])
     example = FEW_SHOT_EXAMPLES.get(field, "")
@@ -692,6 +707,9 @@ def _draft_prompt(field: str, payload: dict) -> str:
 
 # あなたが書く本案件のアイデア
 タイトル: {title}{' (#' + codename + ')' if codename else ''}
+
+# この案件の類型 (戦い方) — 数値の組み立て方とロジックはこの類型に従うこと
+{_archetype_block(archetype)}
 
 # 引用された業界シグナル (記事 — 必ずこの記事の事実を最低 1 つ引用すること)
 {_article_block(articles)}
