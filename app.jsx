@@ -2011,12 +2011,45 @@ function IdeaEditor({ id: editingId } = {}) {
   const [aiCritiques, setAiCritiques] = useState({}); // { [fieldKey]: string }
   const [bulkFilling, setBulkFilling] = useState(false);
   const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved
-  const skipFirstAutoSave = useRef(true);
+  const dirty = useRef(false);
+  const lastSyncedId = useRef(null);
 
-  // Auto-save (only when editing existing idea)
+  // Re-sync state from existingIdea on mount/id change (handles the race where
+  // useState initialized before app.state.extraIdeas reflected the new idea).
   useEffect(() => {
     if (!editingId || !existingIdea) return;
-    if (skipFirstAutoSave.current) { skipFirstAutoSave.current = false; return; }
+    if (lastSyncedId.current === existingIdea.id) return;
+    lastSyncedId.current = existingIdea.id;
+    const f = existingIdea.format || {};
+    setTitle(existingIdea.title === "(無題)" ? "" : (existingIdea.title || ""));
+    setCodename(existingIdea.codename === "UNTITLED" ? "" : (existingIdea.codename || ""));
+    setLinkedSeeds(existingIdea.linkedSeeds || []);
+    setLinkedArticles(existingIdea.linkedArticles || []);
+    setArchetype(existingIdea.archetype || null);
+    setPhase(existingIdea.phase || 1);
+    setGateChecks(existingIdea.gateChecks || {});
+    setForm({
+      problem:         f.problem || "",
+      customer:        f.customer || "",
+      solution:        f.solution || "",
+      unfairAdvantage: f.unfairAdvantage || "",
+      marketSize:      f.marketSize || "",
+      goToMarket:      f.goToMarket || "",
+      businessModel:   f.businessModel || "",
+      competitors:     f.competitors || "",
+      roadmap: Array.isArray(f.roadmap)
+        ? f.roadmap.map(r => `${r.period || ""} — ${r.milestone || ""}`).join("\n")
+        : (f.roadmap || ""),
+      risks:   Array.isArray(f.risks) ? f.risks.join("\n") : (f.risks || ""),
+      ask:     f.ask || "",
+    });
+    dirty.current = false;
+  }, [editingId, existingIdea?.id]); // eslint-disable-line
+
+  // Auto-save (only after user has actually edited something)
+  useEffect(() => {
+    if (!editingId || !existingIdea) return;
+    if (!dirty.current) return;  // never save until user has touched something
     setSaveStatus("saving");
     const t = setTimeout(() => {
       const formatBody = {
@@ -2107,9 +2140,15 @@ function IdeaEditor({ id: editingId } = {}) {
     E: { label:"5. 実行計画",         desc:"いつ何を確かめ、何が必要か" },
   };
 
-  function upd(k, v) { setForm(f => ({ ...f, [k]: v })); }
-  function toggleSeed(id) { setLinkedSeeds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
-  function toggleArticle(id) { setLinkedArticles(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
+  function upd(k, v) { dirty.current = true; setForm(f => ({ ...f, [k]: v })); }
+  function toggleSeed(id) { dirty.current = true; setLinkedSeeds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
+  function toggleArticle(id) { dirty.current = true; setLinkedArticles(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
+  // Wrap setters so user interactions mark the form dirty (auto-save gated on this)
+  const onTitleChange   = (v) => { dirty.current = true; setTitle(v); };
+  const onCodenameChange= (v) => { dirty.current = true; setCodename(v); };
+  const onArchetypeChange = (v) => { dirty.current = true; setArchetype(v); };
+  const onPhaseChange   = (v) => { dirty.current = true; setPhase(v); };
+  const onGateChecksChange = (v) => { dirty.current = true; setGateChecks(v); };
 
   async function aiFill(k, opts = {}) {
     const { silentReveal = false } = opts;
@@ -2234,6 +2273,15 @@ function IdeaEditor({ id: editingId } = {}) {
   function submit(status) {
     const formatBody = buildFormatBody();
     if (editingId && existingIdea) {
+      // Safety: if local state is empty defaults but existingIdea has content,
+      // we hit the prefill race — submit existing data unchanged instead of wiping.
+      const stateLooksUninitialized = !title && !codename && !archetype && !Object.values(form).some(v => (v || "").trim());
+      const existingHasContent = existingIdea.title || existingIdea.codename !== "UNTITLED" || existingIdea.archetype || (existingIdea.format && Object.values(existingIdea.format).some(v => Array.isArray(v) ? v.length : (v || "").trim()));
+      if (stateLooksUninitialized && existingHasContent) {
+        app.updateIdea(editingId, { status });  // only flip status, preserve content
+        window.location.hash = `#/ideas/${editingId}`;
+        return;
+      }
       // Update existing
       app.updateIdea(editingId, {
         title: title || "(無題)",
@@ -2306,8 +2354,8 @@ function IdeaEditor({ id: editingId } = {}) {
         <Card className="p-5">
           <label className="text-[11px] tracking-widest font-bold text-ink-400">コードネーム & タイトル</label>
           <div className="flex gap-2 mt-2">
-            <input value={codename} onChange={e=>setCodename(e.target.value)} placeholder="Codename" className="w-40 h-11 px-3 rounded-lg border border-ink-200 font-mono uppercase text-[13px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
-            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="1行で刺さるタイトルを" className="flex-1 h-11 px-3 rounded-lg border border-ink-200 font-bold text-[15px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
+            <input value={codename} onChange={e=>onCodenameChange(e.target.value)} placeholder="Codename" className="w-40 h-11 px-3 rounded-lg border border-ink-200 font-mono uppercase text-[13px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
+            <input value={title} onChange={e=>onTitleChange(e.target.value)} placeholder="1行で刺さるタイトルを" className="flex-1 h-11 px-3 rounded-lg border border-ink-200 font-bold text-[15px] focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none"/>
           </div>
           {initCtx.suggestion && (
             <div className="mt-3 px-3 py-2 rounded-lg bg-asahi-50 ring-1 ring-asahi-200 text-[12px] text-asahi-800 flex items-start gap-2">
@@ -2317,9 +2365,9 @@ function IdeaEditor({ id: editingId } = {}) {
           )}
         </Card>
 
-        <ArchetypeSelector value={archetype} onChange={setArchetype}/>
+        <ArchetypeSelector value={archetype} onChange={onArchetypeChange}/>
 
-        <PhaseGate phase={phase} setPhase={setPhase} gateChecks={gateChecks} setGateChecks={setGateChecks}/>
+        <PhaseGate phase={phase} setPhase={onPhaseChange} gateChecks={gateChecks} setGateChecks={onGateChecksChange}/>
 
         <Card className="p-4 bg-asahi-50/40 ring-1 ring-asahi-200">
           <div className="flex items-center gap-3">
