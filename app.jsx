@@ -7,6 +7,12 @@
 const { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext, Fragment } = React;
 
 // ---------------------------------------------------------------
+//  Helpers
+// ---------------------------------------------------------------
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function nowISOMin() { return new Date().toISOString().slice(0, 16).replace("T", " "); }
+
+// ---------------------------------------------------------------
 //  State persistence (localStorage) — lightweight store
 // ---------------------------------------------------------------
 const LS_KEY = "sprout:v1";
@@ -173,6 +179,27 @@ function useStore() {
       return { ...s, ideaLikes: {...s.ideaLikes, [ideaId]: nextLikes}, ideaLikedBy: {...s.ideaLikedBy, [ideaId]: nextLikedBy} };
     }),
     addIdea: (idea) => setState(s => ({ ...s, extraIdeas: [idea, ...s.extraIdeas], ideaLikes: {...s.ideaLikes, [idea.id]: 0}, ideaLikedBy: {...s.ideaLikedBy, [idea.id]: []} })),
+    updateIdea: (id, patch) => setState(s => ({
+      ...s,
+      extraIdeas: s.extraIdeas.map(i => i.id === id ? { ...i, ...patch, updatedAt: todayISO() } : i),
+    })),
+    deleteIdea: (id) => setState(s => {
+      const { [id]: _l1, ...likes } = s.ideaLikes;
+      const { [id]: _l2, ...likedBy } = s.ideaLikedBy;
+      const { [id]: _h, ...history } = s.ideaHistory || {};
+      const { [id]: _d, ...decisions } = s.decisions || {};
+      const { [id]: _b, ...budgets } = s.budgets || {};
+      const { [id]: _p, ...portfolio } = s.portfolio || {};
+      const { [id]: _o, ...override } = s.ideaStatusOverride || {};
+      return {
+        ...s,
+        extraIdeas: s.extraIdeas.filter(i => i.id !== id),
+        extraFeedback: (s.extraFeedback || []).filter(f => f.ideaId !== id),
+        ideaLikes: likes, ideaLikedBy: likedBy,
+        ideaHistory: history, decisions: decisions,
+        budgets, portfolio, ideaStatusOverride: override,
+      };
+    }),
     addFeedback: (fb) => setState(s => ({ ...s, extraFeedback: [...s.extraFeedback, fb] })),
     dismissSuggestion: (id) => setState(s => ({ ...s, dismissedSuggestions: { ...s.dismissedSuggestions, [id]: true } })),
     dismissChecklist: () => setState(s => ({ ...s, checklistDismissed: true })),
@@ -974,7 +1001,7 @@ function IdeasPage() {
 
   let ideas = tab === "mine" ? myIdeas.slice() : all.slice();
   if (status !== "all") ideas = ideas.filter(i => i.status === status);
-  ideas.sort((a,b) => b.updatedAt.localeCompare(a.updatedAt));
+  ideas.sort((a,b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
 
   const statuses = ["all", "ドラフト", "提出済", "役員レビュー中", "採択"];
 
@@ -1084,11 +1111,11 @@ function IdeaCard({ idea }) {
           </div>
           <span className="text-[10.5px] text-ink-400">{relTime(idea.updatedAt)}更新</span>
         </div>
-        <div className="mt-2 text-[10.5px] font-bold tracking-widest text-asahi-600">#{idea.codename.toUpperCase()}</div>
+        <div className="mt-2 text-[10.5px] font-bold tracking-widest text-asahi-600">#{(idea.codename || "UNTITLED").toUpperCase()}</div>
         <h3 className="font-extrabold text-[16.5px] leading-tight text-ink-900 line-clamp-2 mt-1 group-hover:text-asahi-700 transition">
-          <a href={`#/ideas/${idea.id}`}>{idea.title}</a>
+          <a href={`#/ideas/${idea.id}`}>{idea.title || "(無題)"}</a>
         </h3>
-        <p className="text-[12.5px] text-ink-600 mt-2 line-clamp-3 leading-relaxed">{idea.format.problem}</p>
+        <p className="text-[12.5px] text-ink-600 mt-2 line-clamp-3 leading-relaxed">{idea.format?.problem || ""}</p>
 
         {/* Seeds / articles */}
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1185,7 +1212,9 @@ function IdeaDetailPage({ id }) {
                 className={`inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-[12.5px] font-bold border ${liked ? "bg-asahi-50 text-asahi-700 border-asahi-200" : "border-ink-200 hover:bg-ink-50"}`}>
                 <Icon name={liked?"heart-fill":"heart"} className="w-4 h-4"/> {likes}
               </button>
-              <Button variant="outline" icon="pencil">編集</Button>
+              {!idea.isExample && (app.state.extraIdeas || []).some(i => i.id === idea.id) && (
+                <Button variant="outline" icon="pencil" onClick={() => window.location.hash = `#/ideas/${idea.id}/edit`}>編集</Button>
+              )}
             </div>
           </div>
         </Card>
@@ -1415,14 +1444,45 @@ function FeedbackThread({ ideaId, threads }) {
 // ---------------------------------------------------------------
 //  Page: Idea Editor (new)
 // ---------------------------------------------------------------
-function IdeaEditor() {
+function IdeaEditor({ id: editingId } = {}) {
   const data = window.SPROUT_DATA;
   const app = useApp();
   const { query, navigate } = useHashRoute();
 
-  // Prefill context from query (?article=... or ?seed=... or ?suggestion=...)
+  // Existing idea (when editing)
+  const existingIdea = useMemo(
+    () => editingId ? (app.state.extraIdeas || []).find(i => i.id === editingId) : null,
+    [editingId]  // eslint-disable-line — intentional: re-resolve only when id changes
+  );
+
+  // Prefill context: existing idea > query (?article=... or ?seed=... or ?suggestion=...) > empty
   const initCtx = useMemo(() => {
-    const ctx = { articles: [], seeds: [], suggestion: null };
+    if (existingIdea) {
+      const f = existingIdea.format || {};
+      return {
+        articles: existingIdea.linkedArticles || [],
+        seeds:    existingIdea.linkedSeeds || [],
+        suggestion: null,
+        title:    existingIdea.title === "(無題)" ? "" : (existingIdea.title || ""),
+        codename: existingIdea.codename === "UNTITLED" ? "" : (existingIdea.codename || ""),
+        form: {
+          problem:         f.problem || "",
+          customer:        f.customer || "",
+          solution:        f.solution || "",
+          unfairAdvantage: f.unfairAdvantage || "",
+          marketSize:      f.marketSize || "",
+          goToMarket:      f.goToMarket || "",
+          businessModel:   f.businessModel || "",
+          competitors:     f.competitors || "",
+          roadmap: Array.isArray(f.roadmap)
+            ? f.roadmap.map(r => `${r.period || ""} — ${r.milestone || ""}`).join("\n")
+            : (f.roadmap || ""),
+          risks:   Array.isArray(f.risks) ? f.risks.join("\n") : (f.risks || ""),
+          ask:     f.ask || "",
+        },
+      };
+    }
+    const ctx = { articles: [], seeds: [], suggestion: null, title: "", codename: "", form: null };
     if (query.article) ctx.articles.push(query.article);
     if (query.seed) ctx.seeds.push(query.seed);
     if (query.suggestion) {
@@ -1430,13 +1490,13 @@ function IdeaEditor() {
       if (sg) { ctx.suggestion = sg; ctx.seeds.push(...sg.fromSeeds); ctx.articles.push(...sg.fromArticles); }
     }
     return ctx;
-  }, [query.article, query.seed, query.suggestion]);
+  }, [editingId, existingIdea, query.article, query.seed, query.suggestion]);
 
-  const [title, setTitle] = useState(initCtx.suggestion ? initCtx.suggestion.title : "");
-  const [codename, setCodename] = useState(initCtx.suggestion ? initCtx.suggestion.title.split(/[ 　-ー『』]/).filter(Boolean)[0] : "");
+  const [title, setTitle] = useState(initCtx.title || (initCtx.suggestion ? initCtx.suggestion.title : ""));
+  const [codename, setCodename] = useState(initCtx.codename || (initCtx.suggestion ? initCtx.suggestion.title.split(/[ 　-ー『』]/).filter(Boolean)[0] : ""));
   const [linkedSeeds, setLinkedSeeds] = useState(initCtx.seeds);
   const [linkedArticles, setLinkedArticles] = useState(initCtx.articles);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(initCtx.form || {
     problem: initCtx.suggestion ? initCtx.suggestion.rationale : "",
     customer: "",
     solution: "",
@@ -1452,6 +1512,45 @@ function IdeaEditor() {
   const [aiFilling, setAiFilling] = useState({});  // { [fieldKey]: true }
   const [aiCritiques, setAiCritiques] = useState({}); // { [fieldKey]: string }
   const [bulkFilling, setBulkFilling] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved
+  const skipFirstAutoSave = useRef(true);
+
+  // Auto-save (only when editing existing idea)
+  useEffect(() => {
+    if (!editingId || !existingIdea) return;
+    if (skipFirstAutoSave.current) { skipFirstAutoSave.current = false; return; }
+    setSaveStatus("saving");
+    const t = setTimeout(() => {
+      const formatBody = {
+        ...form,
+        roadmap: form.roadmap
+          ? form.roadmap.split("\n").filter(Boolean).map(line => {
+              const [period, ...rest] = line.split("—");
+              return { period: (period || "").trim(), milestone: rest.join("—").trim() };
+            })
+          : [],
+        risks: (form.risks || "").split(/\n/).filter(Boolean),
+      };
+      app.updateIdea(editingId, {
+        title: title || "(無題)",
+        codename: codename || "UNTITLED",
+        linkedSeeds, linkedArticles,
+        format: formatBody,
+      });
+      setSaveStatus("saved");
+    }, 700);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line
+  }, [editingId, title, codename, JSON.stringify(form), JSON.stringify(linkedSeeds), JSON.stringify(linkedArticles)]);
+
+  // Guard: editing requested but idea not found (or is sample) → redirect
+  if (editingId && !existingIdea) {
+    return (
+      <div className="p-10 text-ink-500">
+        編集対象のアイデアが見つかりません。<a href="#/ideas" className="text-asahi-600 font-bold ml-2">一覧に戻る</a>
+      </div>
+    );
+  }
 
   const fieldOrder = [
     { key:"problem",         num:"01", label:"Why now (構造変化と緊急性)",
@@ -1599,20 +1698,50 @@ function IdeaEditor() {
     setBulkFilling(false);
   }
 
-  function submit(status) {
-    const id = "i_local_" + Math.random().toString(36).slice(2,8);
-    const formatBody = {
+  function buildFormatBody() {
+    return {
       ...form,
-      roadmap: [{ period: "〜2026 Q4", milestone: form.roadmap || "（記入予定）" }],
+      roadmap: form.roadmap
+        ? form.roadmap.split("\n").filter(Boolean).map(line => {
+            const [period, ...rest] = line.split("—");
+            return { period: (period || "").trim(), milestone: rest.join("—").trim() };
+          })
+        : [{ period: "〜2026 Q4", milestone: "（記入予定）" }],
       risks: (form.risks||"").split(/\n|\/|、/).filter(Boolean),
     };
+  }
+
+  function submit(status) {
+    const formatBody = buildFormatBody();
+    if (editingId && existingIdea) {
+      // Update existing
+      app.updateIdea(editingId, {
+        title: title || "(無題)",
+        codename: codename || "UNTITLED",
+        status,
+        linkedSeeds, linkedArticles,
+        format: formatBody,
+      });
+      app.snapshotIdea(editingId, {
+        by: data.me.id,
+        changeNote: status === "提出済" ? "提出" : "ドラフト更新",
+        format: formatBody,
+        linkedSeeds: [...linkedSeeds],
+        linkedArticles: [...linkedArticles],
+      });
+      window.location.hash = `#/ideas/${editingId}`;
+      return;
+    }
+    // Create new
+    const newId = "i_local_" + Math.random().toString(36).slice(2,8);
+    const today = todayISO();
     const idea = {
-      id, codename: codename || "UNTITLED",
+      id: newId, codename: codename || "UNTITLED",
       title: title || "(無題)",
       author: data.me.id,
       status,
-      createdAt: "2026-04-24",
-      updatedAt: "2026-04-24",
+      createdAt: today,
+      updatedAt: today,
       likes: 0,
       likedBy: [],
       linkedArticles, linkedSeeds,
@@ -1620,15 +1749,15 @@ function IdeaEditor() {
       format: formatBody
     };
     app.addIdea(idea);
-    // snapshot v1
-    app.snapshotIdea(id, {
+    app.snapshotIdea(newId, {
       by: data.me.id,
       changeNote: status === "ドラフト" ? "ドラフト保存 (初稿)" : "提出 (初稿)",
       format: formatBody,
       linkedSeeds: [...linkedSeeds],
       linkedArticles: [...linkedArticles],
     });
-    window.location.hash = `#/ideas/${id}`;
+    // After draft save, jump into edit mode (auto-save resume); after 提出 go to detail
+    window.location.hash = status === "提出済" ? `#/ideas/${newId}` : `#/ideas/${newId}/edit`;
   }
 
   return (
@@ -1636,9 +1765,16 @@ function IdeaEditor() {
       <div className="xl:col-span-8 space-y-4">
         <div>
           <a href="#/ideas" className="text-[12px] text-ink-500 hover:text-ink-900 inline-flex items-center gap-1"><Icon name="chevron-right" className="w-3.5 h-3.5 rotate-180"/>アイデア一覧</a>
-          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600 mt-2">IDEA EDITOR</div>
-          <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">新しいアイデアを書く</h1>
-          <p className="text-ink-600 text-[13.5px] mt-1">ASAHIの新規事業フォーマットに沿って書きます。右で記事やシーズを引用できます。</p>
+          <div className="flex items-center gap-3 mt-2">
+            <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">IDEA EDITOR</div>
+            {editingId && (
+              <span className={`text-[10.5px] font-bold ${saveStatus === "saving" ? "text-ink-400" : saveStatus === "saved" ? "text-emerald-600" : "text-ink-300"}`}>
+                {saveStatus === "saving" ? "保存中…" : saveStatus === "saved" ? "✓ 自動保存済み" : ""}
+              </span>
+            )}
+          </div>
+          <h1 className="text-2xl lg:text-[28px] font-extrabold tracking-tight text-ink-900">{editingId ? "アイデアを編集" : "新しいアイデアを書く"}</h1>
+          <p className="text-ink-600 text-[13.5px] mt-1">ASAHIの新規事業フォーマットに沿って書きます。右で記事やシーズを引用できます。{editingId && " 入力は自動保存されます。"}</p>
         </div>
 
         <Card className="p-5">
@@ -1718,9 +1854,24 @@ function IdeaEditor() {
         })}
 
         <div className="sticky bottom-4 z-10 flex gap-2 justify-end">
-          <Button variant="outline" onClick={() => window.location.hash = "#/ideas"}>キャンセル</Button>
-          <Button variant="soft" icon="pencil" onClick={()=>submit("ドラフト")}>ドラフト保存</Button>
-          <Button icon="send" onClick={()=>submit("提出済")}>提出する</Button>
+          {editingId ? (
+            <>
+              <Button variant="outline" onClick={() => {
+                if (confirm("このアイデアを削除しますか？元に戻せません。")) {
+                  app.deleteIdea(editingId);
+                  window.location.hash = "#/ideas";
+                }
+              }}>削除</Button>
+              <Button variant="outline" onClick={() => window.location.hash = `#/ideas/${editingId}`}>詳細を見る</Button>
+              <Button icon="send" onClick={()=>submit("提出済")}>提出する</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => window.location.hash = "#/ideas"}>キャンセル</Button>
+              <Button variant="soft" icon="pencil" onClick={()=>submit("ドラフト")}>ドラフト保存</Button>
+              <Button icon="send" onClick={()=>submit("提出済")}>提出する</Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -3320,6 +3471,7 @@ function App() {
   else if (route === "sources") page = <SourcesAdminPage/>;
   else if (route === "guide" || route === "setup") page = <SetupGuidePage/>;
   else if (route === "ideas" && sub === "new") page = <IdeaEditor/>;
+  else if (route === "ideas" && sub && parts[2] === "edit") page = <IdeaEditor id={sub}/>;
   else if (route === "ideas" && sub) page = <IdeaDetailPage id={sub}/>;
   else if (route === "ideas") page = <IdeasPage/>;
   else if (route === "inbox") page = <InboxPage/>;
