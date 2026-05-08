@@ -115,6 +115,7 @@ function defaultState(data) {
     extraIdeas: [],
     extraFeedback: [],
     dismissedSuggestions: {},
+    checklistDismissed: false,
     streak: { count: 0, lastPost: null },
 
     // --- personalization / onboarding ---
@@ -174,6 +175,8 @@ function useStore() {
     addIdea: (idea) => setState(s => ({ ...s, extraIdeas: [idea, ...s.extraIdeas], ideaLikes: {...s.ideaLikes, [idea.id]: 0}, ideaLikedBy: {...s.ideaLikedBy, [idea.id]: []} })),
     addFeedback: (fb) => setState(s => ({ ...s, extraFeedback: [...s.extraFeedback, fb] })),
     dismissSuggestion: (id) => setState(s => ({ ...s, dismissedSuggestions: { ...s.dismissedSuggestions, [id]: true } })),
+    dismissChecklist: () => setState(s => ({ ...s, checklistDismissed: true })),
+    resetChecklist: () => setState(s => ({ ...s, checklistDismissed: false })),
     reset: () => setState(defaultState(data)),
 
     // --- prefs ---
@@ -484,7 +487,7 @@ function DailyStreak() {
   return (
     <Card className="p-3 ring-1 ring-cream-200/80 bg-white">
       <div className="flex items-center gap-2.5">
-        <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white shrink-0 ${active ? "bg-gradient-to-br from-amber-400 via-asahi-500 to-asahi-600 shadow-sm" : "bg-ink-200 text-ink-400"}`}>
+        <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white shrink-0 ${active ? "bg-asahi-500 shadow-sm" : "bg-ink-200 text-ink-400"}`}>
           <Icon name="flame" className="w-5 h-5" strokeWidth={2.2}/>
         </div>
         <div className="leading-tight flex-1 min-w-0">
@@ -713,6 +716,7 @@ function Dashboard() {
 
   return (
     <div className="p-6 lg:p-10 max-w-3xl mx-auto space-y-6">
+      <OnboardingChecklist/>
       {/* Title + meta */}
       <div>
         <h1 className="text-[22px] lg:text-[26px] font-extrabold tracking-tight text-ink-900">今朝のニュース</h1>
@@ -807,7 +811,7 @@ function ArticleRow({ article, onPickSeed }) {
   const app = useApp();
   const saved = !!app.state.savedArticles[article.id];
 
-  const catColor = { "市場統計":"bg-sky-500", "生活者トレンド":"bg-rose-500", "海外/先進企業事例":"bg-emerald-500", "事業アイデア例":"bg-amber-500" }[article.category] || "bg-slate-400";
+  const catColor = { "市場統計":"bg-ink-500", "生活者トレンド":"bg-asahi-500", "海外/先進企業事例":"bg-ink-700", "事業アイデア例":"bg-asahi-300" }[article.category] || "bg-ink-300";
 
   return (
     <article className="group py-4 border-b border-ink-100 last:border-0">
@@ -1070,13 +1074,13 @@ function IdeaCard({ idea }) {
   const status = data.statusMeta[idea.status];
   const fbCount = allFeedback(data, app).filter(f => f.ideaId === idea.id).length;
   return (
-    <Card className={`p-5 hover:shadow-pop transition group relative overflow-hidden ${idea.isExample ? "ring-2 ring-dashed ring-violet-300 bg-violet-50/20" : ""}`}>
-      <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-gradient-to-br from-asahi-100 to-amber-100 opacity-60 group-hover:scale-110 transition"/>
+    <Card className={`p-5 hover:shadow-pop transition group relative overflow-hidden ${idea.isExample ? "ring-2 ring-dashed ring-ink-300 bg-ink-50/40" : ""}`}>
+      <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-asahi-50 opacity-60 group-hover:scale-110 transition"/>
       <div className="relative">
         <div className="flex items-start justify-between gap-3">
           <div className="flex gap-1.5 flex-wrap">
             <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${status?.color || "bg-ink-100 text-ink-700 border-ink-200"}`}>{idea.status}</span>
-            {idea.isExample && <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-violet-100 text-violet-800 ring-1 ring-violet-300">例 EXAMPLE</span>}
+            {idea.isExample && <span className="px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-ink-100 text-ink-700 ring-1 ring-ink-200">例 EXAMPLE</span>}
           </div>
           <span className="text-[10.5px] text-ink-400">{relTime(idea.updatedAt)}更新</span>
         </div>
@@ -1155,7 +1159,7 @@ function IdeaDetailPage({ id }) {
         <a href="#/ideas" className="text-[12px] text-ink-500 hover:text-ink-900 inline-flex items-center gap-1"><Icon name="chevron-right" className="w-3.5 h-3.5 rotate-180"/>アイデア一覧</a>
 
         {idea.isExample && (
-          <div className="rounded-xl bg-violet-50 ring-2 ring-dashed ring-violet-300 p-3 flex items-center gap-2 text-[12px] text-violet-900">
+          <div className="rounded-xl bg-ink-50 ring-2 ring-dashed ring-ink-300 p-3 flex items-center gap-2 text-[12px] text-ink-800">
             <Icon name="eye" className="w-4 h-4"/>
             <b>これはサンプル例です。</b>
             <span>「{currentStatus === "採択" ? "採択後トラッキング" : "役員レビューワークフロー"}」がどう見えるかの見本として入っています。削除しても構いません。</span>
@@ -1199,19 +1203,19 @@ function IdeaDetailPage({ id }) {
         <Card className="p-6 lg:p-8">
           <div className="text-[10.5px] tracking-widest font-bold text-asahi-600 mb-1">ASAHI 新規事業フォーマット</div>
           <div className="idea-body text-[13.5px] text-ink-800">
-            <Section num="01" title="解くべき課題">{idea.format.problem}</Section>
-            <Section num="02" title="顧客">{idea.format.customer}</Section>
-            <Section num="03" title="解決策">{idea.format.solution}</Section>
-            <Section num="04" title="競合にない強み">{idea.format.unfairAdvantage}</Section>
-            <Section num="05" title="市場規模">{idea.format.marketSize}</Section>
-            <Section num="06" title="顧客獲得の道筋">{idea.format.goToMarket}</Section>
-            <Section num="07" title="ビジネスモデル">{idea.format.businessModel}</Section>
-            <Section num="08" title="競合">{idea.format.competitors}</Section>
-            <Section num="09" title="ロードマップ">
+            <Section num="01" title="Why now (構造変化と緊急性)">{idea.format.problem}</Section>
+            <Section num="02" title="顧客と痛み (1人称JTBD)">{idea.format.customer}</Section>
+            <Section num="03" title="提供価値 / プロダクト">{idea.format.solution}</Section>
+            <Section num="04" title="自社シーズの効き (後発再現性)">{idea.format.unfairAdvantage}</Section>
+            <Section num="05" title="TAM / SAM / SOM">{idea.format.marketSize}</Section>
+            <Section num="06" title="GTM (Phase × チャネル × 獲得KPI)">{idea.format.goToMarket}</Section>
+            <Section num="07" title="Unit Economics (LTV-CAC)">{idea.format.businessModel}</Section>
+            <Section num="08" title="競合ポジショニング (2軸マップ)">{idea.format.competitors}</Section>
+            <Section num="09" title="ロードマップ & 検証実験">
               <ul>{idea.format.roadmap.map((r,i)=> <li key={i}><b className="text-ink-900">{r.period}</b> — {r.milestone}</li>)}</ul>
             </Section>
-            <Section num="10" title="リスク"><ul>{idea.format.risks.map((r,i)=> <li key={i}>{r}</li>)}</ul></Section>
-            <Section num="11" title="依頼事項">{idea.format.ask}</Section>
+            <Section num="10" title="リスクと打ち手 (Mitigation)"><ul>{idea.format.risks.map((r,i)=> <li key={i}>{r}</li>)}</ul></Section>
+            <Section num="11" title="Ask (予算・人員・Go/No-Go ゲート)">{idea.format.ask}</Section>
           </div>
         </Card>
 
@@ -1445,49 +1449,154 @@ function IdeaEditor() {
     risks: "",
     ask: "",
   });
-  const [aiFilling, setAiFilling] = useState(null);
+  const [aiFilling, setAiFilling] = useState({});  // { [fieldKey]: true }
+  const [aiCritiques, setAiCritiques] = useState({}); // { [fieldKey]: string }
+  const [bulkFilling, setBulkFilling] = useState(false);
 
   const fieldOrder = [
-    { key:"problem",         label:"解くべき課題 / Why now", num:"01", ph:"どの構造変化が起きていて、なぜ今か。80-150字で。"},
-    { key:"customer",        label:"顧客 / Who", num:"02", ph:"1人称で思い浮かべられる具体性で。"},
-    { key:"solution",        label:"解決策 / Solution", num:"03", ph:"何を提供するか。"},
-    { key:"unfairAdvantage", label:"競合にない強み", num:"04", ph:"自社シーズがどう効くか。"},
-    { key:"marketSize",      label:"市場規模 / TAM", num:"05", ph:"数値の根拠もセットで。"},
-    { key:"goToMarket",      label:"顧客獲得の道筋", num:"06", ph:"最初の100ユーザー／100店舗をどう取るか。"},
-    { key:"businessModel",   label:"ビジネスモデル", num:"07", ph:"単価 × 頻度 × 原価。"},
-    { key:"competitors",     label:"競合", num:"08", ph:"誰が近いか、どう違うか。"},
-    { key:"roadmap",         label:"ロードマップ", num:"09", ph:"Phase1: ... / Phase2: ... のように。"},
-    { key:"risks",           label:"リスク", num:"10", ph:"最大の落とし穴2-3個。"},
-    { key:"ask",             label:"依頼事項 / Ask", num:"11", ph:"予算・人員・意思決定。"},
+    { key:"problem",         num:"01", label:"Why now (構造変化と緊急性)",
+      hint:"今何が変わったか + なぜ今やるべきか + 数値シグナル1つ",
+      ph:"例: GLP-1普及で外食ビール客単価が前年比 -8% (出典: 帝国DB)。一方ノンアル来店動機は同期間で +24%…",
+      chars:180 },
+    { key:"customer",        num:"02", label:"顧客と痛み (1人称JTBD)",
+      hint:"1人のペルソナを具体化、JTBD構文、既存代替案の不満1つ",
+      ph:"例: 都市部 32 歳・年収 800 万円・週3で会食する管理職。『接待後にもう一杯欲しいが、翌朝のパフォーマンスを落とせない』時に…",
+      chars:200 },
+    { key:"solution",        num:"03", label:"提供価値 / プロダクト",
+      hint:"便益→機能の順。シーズコードを必ず引用",
+      ph:"例: 飲む時間を、自分の状態を上げる時間に変える気分デザイン・プレミアムノンアル。REAL-ZERO で…",
+      chars:200 },
+    { key:"unfairAdvantage", num:"04", label:"自社シーズの効き (後発再現性)",
+      hint:"再現できない理由を3つ。シーズコード必須。再現に何年か",
+      ph:"例: REAL-ZERO 由来の官能データ 20 年分は再現に最低 8 年。Hop-β は特許出願中…",
+      chars:180 },
+    { key:"marketSize",      num:"05", label:"TAM / SAM / SOM (数値根拠付き)",
+      hint:"3段階の数値 + 各々の出典/推定根拠",
+      ph:"例: TAM 国内+海外で $30.5B (出典: Euromonitor 2030)。SAM プレミアム機能性ノンアルで $0.8B…",
+      chars:260 },
+    { key:"goToMarket",      num:"06", label:"GTM (Phase × チャネル × 獲得KPI)",
+      hint:"Phase 1〜3、各々のチャネル+獲得KPI(数値)、検証仮説1つ",
+      ph:"例: Phase 1 (〜2026 Q4) 都内ゼロプルーフバー 5 店舗、KPI 月販 8,000 本…",
+      chars:240 },
+    { key:"businessModel",   num:"07", label:"Unit Economics (LTV-CAC)",
+      hint:"単価×頻度×原価、LTV/CAC/回収期間、スケール時のレバー",
+      ph:"例: 単価 480 円 × 月 6 本 × 12 ヶ月 = LTV 34,560 円。CAC 8,000 円、回収 4.5 ヶ月…",
+      chars:220 },
+    { key:"competitors",     num:"08", label:"競合ポジショニング (2軸マップ)",
+      hint:"軸を2つ明示、競合3社の位置、自社が取るスポット",
+      ph:"例: 縦軸『機能性の強度』× 横軸『風味の本格度』。Athletic Brewing は本格度高だが機能性は弱い…",
+      chars:200 },
+    { key:"roadmap",         num:"09", label:"ロードマップ & 検証実験",
+      hint:"Phase毎にマイルストーン+検証仮説+成功指標+Kill criteria",
+      ph:"例: Phase 1 (2026 Q3-Q4) プロト 5 SKU、外食 5 店舗テスト。仮説『月 8,000 本売れる』。Kill: 月販 4,000 本未満…",
+      chars:280 },
+    { key:"risks",           num:"10", label:"リスクと打ち手 (Mitigation)",
+      hint:"上位3リスク (市場/技術/組織)、影響度+確率、具体的な打ち手",
+      ph:"例: ①機能性表示遅延 (影響:大/確率:中 — 打ち手: 申請を 2026 Q1 前倒し、薬事 1 名専任)…",
+      chars:220 },
+    { key:"ask",             num:"11", label:"Ask (予算・人員・Go/No-Go ゲート)",
+      hint:"予算内訳、FTEと職種、Go/No-Goゲートの時期と判定基準",
+      ph:"例: 予算 1.8 億円 (R&D 0.8 / マーケ 0.6 / 人件費 0.4)。4.5 FTE。Go/No-Go 2026 年 12 月末…",
+      chars:160 },
   ];
 
   function upd(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function toggleSeed(id) { setLinkedSeeds(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
   function toggleArticle(id) { setLinkedArticles(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]); }
 
-  function aiFill(k) {
-    setAiFilling(k);
-    const samples = {
-      problem: "GLP-1 の普及で『飲む量 × 飲む動機』の両方が構造変化し、既存のビール事業の成長鈍化リスクが高い。一方で『少量・機能性・気分設計』の新しいニーズが明確に立ち上がっている。",
-      customer: "都市部の25-45歳、健康・パフォーマンスに年間10万円以上投資する層。プライマリは『飲酒習慣を減らしつつも、飲用体験の豊かさは捨てたくない人』。",
-      solution: "REAL-ZERO の本格風味 × Hop-β のリラックス機能性 × LB-4012 の腸機能性。小缶プレミアム + D2Cサブスク。",
-      unfairAdvantage: "20年分の官能評価データ × 独自酵母 × 特許取得済み機能性素材。後発では組み合わせ自体を再現できない。",
-      marketSize: "国内機能性ノンアル市場 $2.5B + 海外ノンアル市場 $28B (2030予測)。",
-      goToMarket: "Phase1: ゼロプルーフバー3店舗 / Phase2: 高感度CVS+D2C / Phase3: GMS + 欧米展開。",
-      businessModel: "D2Cサブスク(月額4,980円〜)+ プレミアム外食 BtoB + 限定小売。",
-      competitors: "Athletic Brewing / Recess / Kin Euphorics。いずれも機能性×本格風味×ライフスタイルの三位一体を実現できていない。",
-      roadmap: "2026 Q3: プロト試作 / 2026 Q4: バー先行 / 2027 Q1: D2C / 2027 Q3: 海外テスト",
-      risks: "機能性表示の遅延 / プレミアム単価の受容性 / 自社ビール事業とのカニバリ（ブランド分離で吸収）。",
-      ask: "R&D + マーケ 1.8億円 / 外食アライアンス 0.5名 / 海外調査 0.2名 / 6ヶ月後に Go/No-Go。"
-    };
-    const txt = samples[k] || "";
-    let i = 0;
+  async function aiFill(k, opts = {}) {
+    const { silentReveal = false } = opts;
+    setAiFilling(prev => ({ ...prev, [k]: true }));
     upd(k, "");
-    const t = setInterval(() => {
-      upd(k, txt.slice(0, i));
-      i += 3;
-      if (i >= txt.length) { upd(k, txt); clearInterval(t); setAiFilling(null); }
-    }, 18);
+
+    // Build context from current editor state
+    const seedDetails = linkedSeeds.map(sid => {
+      const s = data.seedsById[sid];
+      if (!s) return null;
+      return {
+        code: s.code, name: s.name, summary: s.summary,
+        readiness: s.readiness, category: s.category,
+        ipStatus: s.ipStatus, constraints: s.constraints,
+      };
+    }).filter(Boolean);
+    const articleDetails = linkedArticles.map(aid => {
+      const a = data.articlesById[aid];
+      if (!a) return null;
+      return { title: a.title, source: a.source, date: a.date, summary: a.summary };
+    }).filter(Boolean);
+    const existing = {};
+    Object.entries(form).forEach(([fk, fv]) => { if (fk !== k && fv) existing[fk] = fv; });
+
+    let txt = "";
+    let critique = "";
+    try {
+      const r = await fetch("/api/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field: k,
+          title, codename,
+          linkedSeeds: seedDetails,
+          linkedArticles: articleDetails,
+          existingFields: existing,
+        }),
+      });
+      const json = await r.json().catch(() => ({}));
+      txt = (json.final || "").trim();
+      critique = (json.critique || "").trim();
+    } catch (e) {
+      txt = "";
+    }
+
+    if (!txt) {
+      // Fallback to local sample so the UI still demos when no API key set
+      const fallback = {
+        problem: "GLP-1 普及で外食ビール客単価が前年比 -8% (出典: 帝国DB 2025)。一方ノンアル来店動機は同期間で +24% (出典: ぐるなび来店調査)。「飲む量×動機」の二重シフトは構造変化であり、既存ビール事業の DCF が 2027 年以降に劣化するため、24 ヶ月以内に新ブランドを立ち上げる必要がある。",
+        customer: "都市部 32 歳・年収 800 万円・週 3 で会食する管理職。『接待後にもう一杯欲しいが、翌朝のパフォーマンスを落とせない』時に、現状はノンアルビールで代替するが「子供っぽい / 体験が貧しい」と感じている。社内パネル N=120 で官能評価が本格ビール対比 -1.2 点、満足度が低い。",
+        solution: "「飲む時間を、自分の状態を上げる時間に変える」気分デザイン・プレミアムノンアル。REAL-ZERO で本格風味、Hop-β でリラックス機能性、LB-4012 で腸内コンディションを同時提供する複合機能型。350ml 缶 480 円 / D2C サブスク 4,980 円月。",
+        unfairAdvantage: "REAL-ZERO の官能評価データ 20 年分 (社内パネル N=12,000 累積) は再現に最低 8 年。Hop-β は特許出願中 (JP 2024-XXXXXX)。LB-4012 は TRL 78%・パイロット生産済。3 つの組合せ自体が国内外に存在せず、競合追随に推定 5-7 年。",
+        marketSize: "TAM: 国内ノンアル $2.5B + 海外ノンアル $28B = $30.5B (出典: Euromonitor 2030)。SAM: プレミアム機能性ノンアル (単価 400 円以上 × 健康志向層) で国内 $0.8B (推定: TAM × プレミアム比率 32%)。SOM: 3 年で国内 50 億円 GMV (単価 480 円 × 年 18 回 × 顧客 580K)。",
+        goToMarket: "Phase 1 (〜2026 Q4): 都内ゼロプルーフバー 5 店舗、KPI = 月販 8,000 本・NPS 50。Phase 2 (2027 H1): 高感度 CVS 200 店 + D2C 2 万人会員、KPI = リピート率 40%・LTV 18,000 円。Phase 3 (2027 H2-): GMS 1,500 店 + 欧米テスト、KPI = GMV 50 億円。",
+        businessModel: "単価 480 円 × 月 6 本 × 12 ヶ月 = 年 LTV 34,560 円、原価率 38% で貢献利益 21,427 円。CAC 8,000 円、回収 4.5 ヶ月。スケール時は外食 BtoB 固定単価 (1 店 8 万円/月) が損益分岐の安定剤、小売の値引き耐性を確保。",
+        competitors: "縦軸『機能性の強度』× 横軸『風味の本格度』で配置。Athletic Brewing は本格度高だが機能性は弱、Recess は機能性高だが風味が水様、Kin Euphorics はライフスタイル軸。当社は『本格度高 × 機能性高』の右上スポットが空白で、3 シーズの組合せで唯一占有可能。",
+        roadmap: "Phase 1 (2026 Q3-Q4): プロト 5 SKU、外食 5 店舗テスト。仮説『月 8,000 本売れる』、Kill: 月販 4,000 本未満。Phase 2 (2027 H1): D2C ローンチ、機能性表示取得。仮説『リピート 40%』、Kill: 25% 未満。Phase 3 (2027 H2): GMS 拡大。仮説『GMV 50 億円』。",
+        risks: "①機能性表示遅延 (影響:大/確率:中 — 打ち手: 申請を 2026 Q1 前倒し、薬事 1 名専任)。②既存ビール事業とのカニバリ (影響:中/確率:高 — 打ち手: 別ブランド・別法人スキームで意思決定独立化、6 ヶ月後にカニバリ率測定)。③プレミアム単価の受容性 (影響:大/確率:中 — 打ち手: Phase 1 で価格弾力性データ取得)。",
+        ask: "予算 1.8 億円 (R&D 0.8 / マーケ 0.6 / 人件費 0.4)。4.5 FTE (R&D 2 名社内転籍、ブランド 1 名外部、薬事 0.5 名、外食 1 名)。Go/No-Go: 2026 年 12 月末、Phase 1 月販 8,000 本 + NPS 50 以上で判定。",
+      };
+      txt = fallback[k] || "";
+    }
+
+    setAiCritiques(prev => ({ ...prev, [k]: critique }));
+
+    if (silentReveal) {
+      upd(k, txt);
+      setAiFilling(prev => { const n = { ...prev }; delete n[k]; return n; });
+      return;
+    }
+
+    // Typewriter reveal
+    return new Promise(resolve => {
+      let i = 0;
+      const step = Math.max(2, Math.floor(txt.length / 60));
+      const t = setInterval(() => {
+        upd(k, txt.slice(0, i));
+        i += step;
+        if (i >= txt.length) {
+          upd(k, txt);
+          clearInterval(t);
+          setAiFilling(prev => { const n = { ...prev }; delete n[k]; return n; });
+          resolve();
+        }
+      }, 18);
+    });
+  }
+
+  async function aiFillAll() {
+    if (bulkFilling) return;
+    setBulkFilling(true);
+    // Run requests in parallel, but reveal silently (no typewriter) so all fields fill quickly.
+    await Promise.all(fieldOrder.map(f => aiFill(f.key, { silentReveal: true })));
+    setBulkFilling(false);
   }
 
   function submit(status) {
@@ -1546,22 +1655,67 @@ function IdeaEditor() {
           )}
         </Card>
 
-        {fieldOrder.map(f => (
-          <Card key={f.key} className="p-5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono text-asahi-500 text-[11px] tracking-widest font-bold">{f.num}</span>
-                <label className="font-extrabold text-ink-900 text-[14.5px]">{f.label}</label>
-              </div>
-              <button onClick={()=>aiFill(f.key)} className="text-[11px] font-semibold text-asahi-600 hover:text-asahi-700 inline-flex items-center gap-1">
-                <Icon name="sparkles" className="w-3.5 h-3.5"/> AIで埋める
-              </button>
+        <Card className="p-4 bg-asahi-50/40 ring-1 ring-asahi-200">
+          <div className="flex items-center gap-3">
+            <Icon name="sparkles" className={`w-5 h-5 text-asahi-600 ${bulkFilling ? "animate-pulse" : ""}`}/>
+            <div className="flex-1 min-w-0">
+              <div className="text-[12.5px] font-extrabold text-ink-900">11フィールドを一括でAIに書かせる</div>
+              <div className="text-[11px] text-ink-600 mt-0.5">引用記事+シーズ+既入力を全て使い、各フィールドを並列生成します。仕上げに加筆してください。</div>
             </div>
-            <textarea rows={3} value={form[f.key]} onChange={e=>upd(f.key, e.target.value)}
-              placeholder={f.ph}
-              className={`mt-2 w-full rounded-lg border border-ink-200 focus:border-ink-400 focus:ring-2 focus:ring-ink-100 outline-none px-3 py-2 text-[13px] ${aiFilling===f.key ? "blink" : ""}`}/>
-          </Card>
-        ))}
+            <button
+              onClick={aiFillAll}
+              disabled={bulkFilling}
+              className="shrink-0 inline-flex items-center gap-1.5 px-3.5 h-9 rounded-lg bg-asahi-500 text-white hover:bg-asahi-600 disabled:opacity-50 text-[12.5px] font-semibold">
+              <Icon name="sparkles" className={`w-4 h-4 ${bulkFilling ? "animate-pulse" : ""}`}/>
+              {bulkFilling ? "生成中…" : "一括生成"}
+            </button>
+          </div>
+        </Card>
+
+        {fieldOrder.map(f => {
+          const len = (form[f.key] || "").length;
+          const overChars = f.chars && len > f.chars;
+          const filling = !!aiFilling[f.key];
+          const critique = aiCritiques[f.key];
+          return (
+            <Card key={f.key} className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-asahi-500 text-[11px] tracking-widest font-bold">{f.num}</span>
+                    <label className="font-extrabold text-ink-900 text-[14.5px]">{f.label}</label>
+                  </div>
+                  {f.hint && <div className="text-[11px] text-ink-500 mt-1 leading-relaxed">{f.hint}</div>}
+                </div>
+                <button
+                  onClick={()=>aiFill(f.key)}
+                  disabled={filling || bulkFilling}
+                  className="shrink-0 text-[11px] font-semibold text-asahi-600 hover:text-asahi-700 disabled:opacity-50 inline-flex items-center gap-1">
+                  <Icon name="sparkles" className={`w-3.5 h-3.5 ${filling ? "animate-pulse" : ""}`}/>
+                  {filling ? "AIが書いています…" : "AIで書く"}
+                </button>
+              </div>
+              <textarea rows={4} value={form[f.key]} onChange={e=>upd(f.key, e.target.value)}
+                placeholder={f.ph}
+                className={`mt-2 w-full rounded-lg border focus:ring-2 outline-none px-3 py-2 text-[13px] leading-relaxed ${overChars ? "border-asahi-400 focus:border-asahi-500 focus:ring-asahi-100" : "border-ink-200 focus:border-ink-400 focus:ring-ink-100"} ${filling ? "blink" : ""}`}/>
+              {f.chars && (
+                <div className={`mt-1 text-[10.5px] tabular-nums text-right ${overChars ? "text-asahi-600 font-semibold" : "text-ink-400"}`}>
+                  {len} / {f.chars} 字 {overChars && "(超過 — 削ること)"}
+                </div>
+              )}
+              {critique && (
+                <details className="mt-3 group">
+                  <summary className="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-ink-700 hover:text-ink-900 select-none">
+                    <Icon name="chevron-right" className="w-3 h-3 transition group-open:rotate-90"/>
+                    <Icon name="sparkles" className="w-3 h-3 text-asahi-500"/>
+                    AI レビュー観点 — 役員が突っ込むだろう弱点 (3 点)
+                  </summary>
+                  <div className="mt-2 p-3 rounded-lg bg-ink-50 ring-1 ring-ink-200 text-[11.5px] text-ink-700 leading-relaxed whitespace-pre-wrap">{critique}</div>
+                </details>
+              )}
+            </Card>
+          );
+        })}
 
         <div className="sticky bottom-4 z-10 flex gap-2 justify-end">
           <Button variant="outline" onClick={() => window.location.hash = "#/ideas"}>キャンセル</Button>
@@ -1707,10 +1861,10 @@ function MePage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <StatCard icon="bulb"   label="アイデア数"   value={myIdeas.length} accent="asahi-500"/>
-        <StatCard icon="heart"  label="受けたいいね" value={totalLikesReceived} accent="rose-500"/>
-        <StatCard icon="message" label="与えたFB"    value={myFbGiven} accent="violet-500"/>
-        <StatCard icon="bookmark" label="いいね/保存" value={myLikesGiven} accent="amber-500"/>
-        <StatCard icon="flame"  label="連続アウトプット" value={`${app.state.streak.count}日`} accent="emerald-500"/>
+        <StatCard icon="heart"  label="受けたいいね" value={totalLikesReceived} accent="ink-700"/>
+        <StatCard icon="message" label="与えたFB"    value={myFbGiven} accent="ink-700"/>
+        <StatCard icon="bookmark" label="いいね/保存" value={myLikesGiven} accent="ink-700"/>
+        <StatCard icon="flame"  label="連続アウトプット" value={`${app.state.streak.count}日`} accent="asahi-500"/>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -1722,7 +1876,7 @@ function MePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {myIdeas.map(i => <IdeaCard key={i.id} idea={i}/>)}
             {myIdeas.length === 0 && (
-              <Card className="md:col-span-2 p-10 text-center bg-gradient-to-br from-asahi-50/60 to-amber-50/60 border-2 border-dashed border-asahi-200">
+              <Card className="md:col-span-2 p-10 text-center bg-asahi-50/40 border-2 border-dashed border-asahi-200">
                 <div className="text-[28px] mb-2">🌱</div>
                 <div className="font-extrabold text-ink-900 text-[15px]">最初のアイデアを書きましょう</div>
                 <p className="text-[12.5px] text-ink-600 mt-1 max-w-md mx-auto">萌芽RSSで気になる記事を見つけたら、「アイデアに変える」ボタンで2クリックで書き始められます。</p>
@@ -1771,10 +1925,7 @@ function MePage() {
 function StatCard({ icon, label, value, accent }) {
   const accentMap = {
     "asahi-500":   "bg-asahi-50 text-asahi-600",
-    "rose-500":    "bg-rose-50 text-rose-600",
-    "violet-500":  "bg-violet-50 text-violet-600",
-    "amber-500":   "bg-amber-50 text-amber-600",
-    "emerald-500": "bg-emerald-50 text-emerald-600",
+    "ink-700":     "bg-ink-100 text-ink-700",
   };
   const cls = accentMap[accent] || "bg-ink-100 text-ink-700";
   return (
@@ -1841,9 +1992,9 @@ function HistoryPanel({ idea }) {
   if (history.length < 2) return null;
 
   const SECTION_LABELS = {
-    problem:"解くべき課題", customer:"顧客", solution:"解決策", unfairAdvantage:"強み",
-    marketSize:"市場規模", goToMarket:"顧客獲得の道筋", businessModel:"ビジネスモデル",
-    competitors:"競合", roadmap:"ロードマップ", risks:"リスク", ask:"依頼事項",
+    problem:"Why now", customer:"顧客と痛み", solution:"提供価値/プロダクト", unfairAdvantage:"自社シーズの効き",
+    marketSize:"TAM/SAM/SOM", goToMarket:"GTM", businessModel:"Unit Economics",
+    competitors:"競合ポジショニング", roadmap:"ロードマップ&検証", risks:"リスクと打ち手", ask:"Ask",
   };
 
   function diffSections(a, b) {
@@ -2086,48 +2237,284 @@ function PortfolioPanel({ idea, portfolio }) {
 // ---------------------------------------------------------------
 //  OnboardingModal — first-time personalization
 // ---------------------------------------------------------------
-function OnboardingModal() {
+function OnboardingChecklist() {
   const data = window.SPROUT_DATA;
   const app = useApp();
-  const [seeds, setSeeds] = useState([...app.state.prefs.focusSeeds]);
-  const [domains, setDomains] = useState([...app.state.prefs.focusDomains]);
-  const DOMAINS = ["発酵/酵母","飲料全般","健康/機能性","サステナ","パッケージ","生活者/世代","食/アップサイクル","AI/R&D"];
+  const me = data.me;
 
-  function toggle(arr, v, setter) {
-    setter(arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v]);
-  }
-  function start() {
-    app.setPrefs({ focusSeeds: seeds, focusDomains: domains });
-    window.location.hash = "#/dashboard";
-  }
+  const tasks = useMemo(() => {
+    const savedCount = Object.keys(app.state.savedArticles || {}).length;
+    const myIdeas = (app.state.extraIdeas || []).filter(i => i.author === me.id);
+    const myFB    = (app.state.extraFeedback || []).filter(f => f.author === me.id);
+    return [
+      { id: "news", label: "今朝のニュースをチェック",          done: true,                  hint: "" },
+      { id: "save", label: "気になる記事を1本「保存」する",      done: savedCount > 0,        href: "#/dashboard", hint: "記事右下のしおりアイコンをタップ" },
+      { id: "idea", label: "アイデアを1本書く",                  done: myIdeas.length > 0,    href: "#/ideas/new" },
+      { id: "fb",   label: "仲間のアイデアにコメントする",        done: myFB.length > 0,       href: "#/ideas",     hint: "詳細ページの『コメントする』から" },
+    ];
+  }, [app.state.savedArticles, app.state.extraIdeas, app.state.extraFeedback]);
 
-  if (app.state.prefs.onboarded) return null;
-  return (
-    <Modal open={true} onClose={()=>{}} size="lg">
-      <div className="p-8">
-        <div className="flex items-center gap-2 mb-1">
-          <Icon name="logo" className="w-7 h-7"/>
-          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">SPROUT へようこそ</div>
+  if (app.state.checklistDismissed) return null;
+  const completed = tasks.filter(t => t.done).length;
+  const total = tasks.length;
+  const allDone = completed === total;
+
+  if (allDone) {
+    return (
+      <Card className="p-4 bg-asahi-50 ring-1 ring-asahi-200">
+        <div className="flex items-start gap-3">
+          <div className="h-9 w-9 rounded-full bg-asahi-500 text-white flex items-center justify-center font-extrabold shrink-0">
+            <Icon name="check" className="w-5 h-5"/>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13px] font-extrabold text-ink-900">スタート完了 🎉</div>
+            <div className="text-[12px] text-ink-700 mt-0.5">基本の流れを使いこなせています。日々の習慣に。</div>
+          </div>
+          <button onClick={()=>app.dismissChecklist()} className="text-[11px] text-ink-500 hover:text-ink-900 font-semibold">閉じる</button>
         </div>
-        <h2 className="text-2xl font-extrabold tracking-tight text-ink-900">興味ある領域を選んでください</h2>
-        <p className="text-ink-600 text-[13px] mt-1">朝のフィード上段にこの領域の記事を並べます。あとからいつでも変更できます。</p>
+      </Card>
+    );
+  }
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon name="check" className="w-4 h-4 text-asahi-600"/>
+        <div className="text-[12px] font-extrabold text-ink-900">スタートチェックリスト</div>
+        <div className="text-[10.5px] text-ink-500 ml-1 tabular-nums">{completed} / {total}</div>
+        <button onClick={()=>app.dismissChecklist()} className="ml-auto text-[10.5px] text-ink-400 hover:text-ink-700">隠す</button>
+      </div>
+      <div className="h-1 rounded-full bg-ink-100 mb-3 overflow-hidden">
+        <div className="h-full bg-asahi-500 transition-all" style={{ width: `${(completed/total)*100}%` }}/>
+      </div>
+      <div className="space-y-1">
+        {tasks.map(t => {
+          const Inner = (
+            <>
+              <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${t.done ? "bg-asahi-500 text-white" : "ring-2 ring-ink-300 bg-white"}`}>
+                {t.done && <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none"><path d="M3 8l3 3 7-7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-[12.5px] font-semibold ${t.done ? "line-through text-ink-400" : "text-ink-900"}`}>{t.label}</div>
+                {!t.done && t.hint && <div className="text-[10.5px] text-ink-500 mt-0.5">{t.hint}</div>}
+              </div>
+              {!t.done && <Icon name="chevron-right" className="w-3.5 h-3.5 text-ink-300"/>}
+            </>
+          );
+          if (t.done || !t.href) {
+            return <div key={t.id} className="flex items-center gap-2.5 p-2 rounded-lg">{Inner}</div>;
+          }
+          return (
+            <a key={t.id} href={t.href} className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-ink-50 transition">{Inner}</a>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-5">
-          {DOMAINS.map(d => {
-            const on = domains.includes(d);
+function OnboardingIllustration({ kind }) {
+  if (kind === "intro") {
+    return (
+      <div className="rounded-xl bg-gradient-to-br from-asahi-500 to-asahi-700 text-white p-6 ring-1 ring-asahi-200">
+        <div className="grid grid-cols-4 gap-3 text-[10.5px] font-bold">
+          {[
+            { n: "01", t: "ニュース" },
+            { n: "02", t: "アイデア" },
+            { n: "03", t: "磨く" },
+            { n: "04", t: "採択" },
+          ].map((s, i) => (
+            <div key={i} className="bg-white/15 rounded-lg p-3 ring-1 ring-white/30 backdrop-blur">
+              <div className="opacity-70 tracking-widest">{s.n}</div>
+              <div className="mt-1 text-[12.5px]">{s.t}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (kind === "news") {
+    return (
+      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4 space-y-2">
+        <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">あなた向け</div>
+        {[
+          { c: "生活者トレンド", t: "GLP-1普及で「飲む量×動機」が構造変化", s: ["YAS-17"] },
+          { c: "海外/先進企業事例", t: "Athletic Brewing が D2C で前年比 2.4x", s: ["REAL-ZERO"] },
+        ].map((a, i) => (
+          <div key={i} className="border-b border-ink-100 last:border-0 pb-2 last:pb-0">
+            <div className="flex items-center gap-1.5 text-[10px] text-ink-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-asahi-500"/><span>{a.c}</span>
+            </div>
+            <div className="text-[12px] font-bold text-ink-900 mt-0.5">{a.t}</div>
+            <div className="mt-1 flex gap-1">
+              {a.s.map(s => <span key={s} className="text-[9.5px] font-bold text-asahi-700 bg-asahi-50 ring-1 ring-asahi-200 px-1.5 rounded">{s}</span>)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (kind === "idea") {
+    return (
+      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4">
+        <div className="flex items-start gap-3">
+          <div className="rounded-lg bg-ink-50 ring-1 ring-ink-200 p-2 text-[10px] text-ink-600 flex-1">
+            <div className="text-[9.5px] text-ink-400 tracking-widest">記事</div>
+            <div className="font-bold text-ink-800 mt-0.5">GLP-1 と飲料市場…</div>
+          </div>
+          <div className="text-asahi-500 text-2xl leading-none mt-3">→</div>
+          <div className="rounded-lg bg-asahi-50 ring-1 ring-asahi-200 p-2 text-[10px] flex-1">
+            <div className="text-[9.5px] text-asahi-600 tracking-widest font-bold">アイデア下書き</div>
+            <div className="font-bold text-ink-800 mt-0.5">『Sober Wellness』</div>
+            <div className="mt-1 flex gap-1 flex-wrap">
+              {["YAS-17","Hop-β","REAL-ZERO"].map(s => <span key={s} className="text-[9px] font-bold text-asahi-700 bg-white ring-1 ring-asahi-200 px-1 rounded">{s}</span>)}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-1 text-[9.5px]">
+          {["問題","顧客","ソリューション","市場規模","Go-to-Market","収益モデル"].map(k => (
+            <div key={k} className="bg-ink-50 rounded px-1.5 py-1 text-ink-600 font-semibold text-center">{k}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (kind === "feedback") {
+    return (
+      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4 space-y-2.5">
+        {[
+          { who: "山田 美咲", role: "advisor", txt: "GLP-1 の話、ライフスタイルブランド化の角度を入れた方が刺さる" },
+          { who: "中村 博之", role: "exec",    txt: "ブランド設計次第。カニバリを抑えるスキームが欲しい" },
+        ].map((c, i) => (
+          <div key={i} className="flex gap-2">
+            <div className="h-7 w-7 rounded-full bg-asahi-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">{c.who[0]}</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 text-[10px]">
+                <span className="font-bold text-ink-900">{c.who}</span>
+                <span className="px-1 rounded bg-ink-100 text-ink-600 font-bold tracking-wider">{c.role}</span>
+              </div>
+              <div className="text-[11px] text-ink-700 mt-0.5">{c.txt}</div>
+            </div>
+          </div>
+        ))}
+        <div className="flex items-center gap-2 pt-2 border-t border-ink-100 text-[10px] text-ink-500">
+          <span className="font-mono bg-ink-100 px-1 rounded">v1</span>→
+          <span className="font-mono bg-ink-100 px-1 rounded">v2</span>→
+          <span className="font-mono bg-asahi-100 text-asahi-700 px-1 rounded font-bold">v3</span>
+          <span className="ml-1">改訂履歴は自動保存</span>
+        </div>
+      </div>
+    );
+  }
+  if (kind === "review") {
+    return (
+      <div className="rounded-xl ring-1 ring-ink-200 bg-white p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="text-[11px] font-bold text-ink-900">役員レビュー</div>
+          <div className="ml-auto text-[10.5px] text-ink-600"><b className="text-asahi-700">2</b><span className="text-ink-400"> / 3</span> 承認</div>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { who: "中村", d: "approve" },
+            { who: "林田", d: "approve" },
+            { who: "上田", d: "hold" },
+          ].map((x, i) => {
+            const tone = x.d === "approve" ? "bg-asahi-50 text-asahi-700 ring-asahi-200" : "bg-ink-100 text-ink-700 ring-ink-200";
+            const label = x.d === "approve" ? "承認" : "保留";
             return (
-              <button key={d} onClick={()=>toggle(domains, d, setDomains)}
-                className={`p-3 rounded-lg border-2 transition text-[12.5px] font-bold ${on ? "border-asahi-500 bg-asahi-50 text-asahi-700" : "border-ink-200 hover:border-ink-400 text-ink-700"}`}>
-                {d}
-              </button>
+              <div key={i} className={`rounded-lg ring-1 ${tone} p-2 text-center`}>
+                <div className="text-[10px] text-ink-500">{x.who}</div>
+                <div className="text-[11.5px] font-bold mt-0.5">{label}</div>
+              </div>
             );
           })}
         </div>
-        <div className="text-[11px] text-ink-500 mt-3">選択中 <b className="text-ink-900">{domains.length}</b> 個 (推奨 2-4個)</div>
+        <div className="mt-3 text-[10.5px] text-ink-500">採択後はマイルストーンと予算消化を自動追跡</div>
+        <div className="h-1 rounded-full bg-ink-100 mt-1 overflow-hidden">
+          <div className="h-full bg-asahi-500" style={{width:"42%"}}/>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
 
-        <div className="flex items-center justify-between mt-6 pt-5 border-t border-ink-100">
-          <button onClick={start} className="text-[12px] text-ink-500 hover:text-ink-900">スキップ</button>
-          <Button variant="dark" icon="check" onClick={start}>始める</Button>
+function OnboardingModal() {
+  const data = window.SPROUT_DATA;
+  const app = useApp();
+  const [step, setStep] = useState(0);
+  const [domains, setDomains] = useState([...app.state.prefs.focusDomains]);
+  const DOMAINS = ["発酵/酵母","飲料全般","健康/機能性","サステナ","パッケージ","生活者/世代","食/アップサイクル","AI/R&D"];
+
+  function toggleD(v) {
+    setDomains(arr => arr.includes(v) ? arr.filter(x=>x!==v) : [...arr, v]);
+  }
+  function finish() {
+    app.setPrefs({ focusDomains: domains });
+    window.location.hash = "#/dashboard";
+  }
+
+  const STEPS = [
+    { kind: "intro",    eyebrow: "ASAHI R&D IDEATION HUB",   title: "SPROUT へようこそ",          body: "毎朝の世界の兆しから、自社シーズと結びついた事業アイデアを、仲間と磨いて役員レビューまで進める。— 4ステップで使い方を紹介します。" },
+    { kind: "news",     eyebrow: "STEP 1 ｜ 毎朝、世界の兆しを浴びる", title: "今朝のニュース",       body: "19のニュースソースから、世界の食・健康・サステナのトレンドを毎朝集めます。担当シーズと響き合う記事だけが「あなた向け」枠に並びます。" },
+    { kind: "idea",     eyebrow: "STEP 2 ｜ ワンクリックでアイデア化", title: "記事 → アイデア",     body: "気になった記事の「アイデアにする」を押すと、その記事と関連シーズが自動で紐づきます。9項目テンプレを埋めるだけ。" },
+    { kind: "feedback", eyebrow: "STEP 3 ｜ 仲間と磨く",                title: "コメント・改訂履歴",  body: "提出すれば関係者からコメントが届きます。誰の助言で、どこが、なぜ変わったかが、いつでも辿れます。" },
+    { kind: "review",   eyebrow: "STEP 4 ｜ 役員レビュー → 採択",       title: "判定 → 追跡",         body: "3名の役員が判定し、2名以上の承認で採択。マイルストーンと予算消化が、自動で追跡されます。" },
+    { kind: "domains",  eyebrow: "もう少しだけ",                        title: "興味ある領域を選んでください", body: "朝のフィード上段にこの領域の記事を並べます。あとからいつでも変更できます。" },
+  ];
+
+  if (app.state.prefs.onboarded) return null;
+  const cur = STEPS[step];
+  const isLast = step === STEPS.length - 1;
+
+  return (
+    <Modal open={true} onClose={()=>{}} size="lg">
+      <div className="p-8">
+        {/* Progress */}
+        <div className="flex items-center gap-1.5 mb-5">
+          {STEPS.map((_, i) => (
+            <div key={i} className={`h-1.5 rounded-full transition-all ${i === step ? "w-10 bg-asahi-500" : i < step ? "w-1.5 bg-asahi-300" : "w-1.5 bg-ink-200"}`}/>
+          ))}
+          <div className="ml-auto text-[10.5px] text-ink-400 font-mono tabular-nums">{step+1} / {STEPS.length}</div>
+        </div>
+
+        <div className="flex items-center gap-2 mb-1">
+          <Icon name="logo" className="w-5 h-5"/>
+          <div className="text-[10.5px] tracking-widest font-bold text-asahi-600">{cur.eyebrow}</div>
+        </div>
+        <h2 className="text-2xl font-extrabold tracking-tight text-ink-900">{cur.title}</h2>
+        <p className="text-ink-600 text-[13.5px] mt-1.5 leading-relaxed">{cur.body}</p>
+
+        {cur.kind === "domains" ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-5">
+              {DOMAINS.map(d => {
+                const on = domains.includes(d);
+                return (
+                  <button key={d} onClick={()=>toggleD(d)}
+                    className={`p-3 rounded-lg border-2 transition text-[12.5px] font-bold ${on ? "border-asahi-500 bg-asahi-50 text-asahi-700" : "border-ink-200 hover:border-ink-400 text-ink-700"}`}>
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-[11px] text-ink-500 mt-3">選択中 <b className="text-ink-900">{domains.length}</b> 個 (推奨 2-4個)</div>
+          </>
+        ) : (
+          <div className="mt-5"><OnboardingIllustration kind={cur.kind}/></div>
+        )}
+
+        <div className="flex items-center justify-between mt-7 pt-5 border-t border-ink-100">
+          <div className="flex items-center gap-3">
+            <button onClick={finish} className="text-[12px] text-ink-500 hover:text-ink-900">スキップ</button>
+            {step > 0 && (
+              <button onClick={()=>setStep(s => s - 1)} className="text-[12px] text-ink-700 hover:text-ink-900 font-semibold">← 戻る</button>
+            )}
+          </div>
+          {isLast ? (
+            <Button variant="dark" icon="check" onClick={finish}>始める</Button>
+          ) : (
+            <Button variant="primary" onClick={()=>setStep(s => s + 1)}>次へ →</Button>
+          )}
         </div>
       </div>
     </Modal>
@@ -2811,6 +3198,47 @@ function PresetPickerModal({ open, presets, existing, onPick, onClose }) {
 // ---------------------------------------------------------------
 //  Setup Guide (初見ユーザー向け使い方)
 // ---------------------------------------------------------------
+function ProductTourVideo() {
+  const [playing, setPlaying] = useState(false);
+  const [available, setAvailable] = useState(null); // null=checking, true=ok, false=missing
+  const SRC = "/assets/sprout-tour.mp4";
+
+  useEffect(() => {
+    let aborted = false;
+    fetch(SRC, { method: "HEAD" })
+      .then(r => { if (!aborted) setAvailable(r.ok); })
+      .catch(() => { if (!aborted) setAvailable(false); });
+    return () => { aborted = true; };
+  }, []);
+
+  if (playing && available) {
+    return (
+      <div className="relative rounded-2xl overflow-hidden ring-1 ring-ink-200 aspect-video shadow-card bg-ink-900">
+        <video src={SRC} controls autoPlay playsInline className="w-full h-full"/>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => available && setPlaying(true)}
+      disabled={!available}
+      className="group relative w-full rounded-2xl overflow-hidden ring-1 ring-ink-200 aspect-video shadow-card bg-gradient-to-br from-asahi-600 via-asahi-500 to-asahi-700 text-left disabled:cursor-default">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_60%)]"/>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+        <div className={`h-20 w-20 rounded-full bg-white/15 ring-1 ring-white/40 backdrop-blur flex items-center justify-center transition ${available ? "group-hover:scale-105 group-hover:bg-white/25" : ""}`}>
+          <svg viewBox="0 0 24 24" className="w-9 h-9 ml-1" fill="white"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <div className="mt-5 text-[11px] tracking-[0.25em] font-bold opacity-90">SPROUT — PRODUCT TOUR</div>
+        <div className="mt-1 text-[15px] font-semibold opacity-95">Asahi R&amp;D Ideation Hub</div>
+        {available === false && (
+          <div className="mt-3 text-[11px] bg-black/30 rounded-full px-3 py-1">動画準備中</div>
+        )}
+      </div>
+    </button>
+  );
+}
+
 function SetupGuidePage() {
   const { navigate } = useHashRoute();
 
@@ -2827,6 +3255,22 @@ function SetupGuidePage() {
       <div>
         <h1 className="text-[24px] font-extrabold tracking-tight text-ink-900">使い方</h1>
         <p className="text-ink-500 text-[13px] mt-1.5">SPROUT の使い方を 4 ステップで。</p>
+      </div>
+
+      {/* Main use-case video */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10.5px] tracking-widest font-bold text-asahi-600">PRODUCT TOUR</span>
+          <span className="text-[11px] text-ink-400">約 90 秒</span>
+        </div>
+        <h2 className="text-[16px] font-bold text-ink-900">メインユースケースを動画で見る</h2>
+        <p className="text-[12.5px] text-ink-600 leading-relaxed">
+          毎朝のニュース取得 → 関連シーズと結びつけてアイデア化 → 仲間と磨く → 役員レビュー、までの流れを一気に確認できます。
+        </p>
+        <ProductTourVideo/>
+        <div className="text-[11px] text-ink-500 leading-relaxed">
+          ※ 動画ファイルは <code className="px-1 rounded bg-ink-100 font-mono text-[10.5px]">/assets/sprout-tour.mp4</code> に配置すると、サムネイルをタップしてその場で再生できます。
+        </div>
       </div>
 
       {/* Steps */}

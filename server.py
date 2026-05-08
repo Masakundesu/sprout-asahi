@@ -469,6 +469,358 @@ def heuristic_summary(title: str, desc: str, domains: list) -> list:
     return picked[:3]
 
 
+# -----------------------------------------------------------------------------
+# Idea draft AI — field-by-field generation at executive-review quality
+# -----------------------------------------------------------------------------
+
+# Per-field quality criteria + character budgets. Used to build the prompt and
+# also surfaced (lightly) to the frontend as placeholder hints.
+FIELD_CRITERIA = {
+    "problem": {
+        "label": "Why now (構造変化と緊急性)",
+        "chars": 180,
+        "must_include": [
+            "今、何が変わったか (構造変化を1つ特定)",
+            "なぜ今やるべきか (待つコスト / 機会窓)",
+            "数値シグナルを1つ (市場・行動・規制のいずれか)",
+        ],
+        "anti_pattern": "『〜が注目されている』『〜の可能性がある』のような曖昧な現状描写。",
+    },
+    "customer": {
+        "label": "顧客と痛み (1人称JTBD)",
+        "chars": 200,
+        "must_include": [
+            "1人のペルソナを具体化 (年齢/職業/世帯/可処分所得)",
+            "そのペルソナが『〜の時に〜したい (が、〜だから出来ない)』のJTBD構文",
+            "既存代替案 (現状どう代替しているか) と、その不満点1つ",
+        ],
+        "anti_pattern": "『健康志向の若者』のような塊概念。複数ペルソナの併記。",
+    },
+    "solution": {
+        "label": "提供価値 / プロダクト",
+        "chars": 200,
+        "must_include": [
+            "提供価値 (顧客便益) を1文で先に書く",
+            "そのあとプロダクト構成 (何をどう届けるか)",
+            "自社シーズと最低1つ接続させ、シーズコードを必ず引用",
+        ],
+        "anti_pattern": "機能の羅列から始める。便益と機能の混在。",
+    },
+    "unfairAdvantage": {
+        "label": "自社シーズの効き (後発再現性)",
+        "chars": 180,
+        "must_include": [
+            "後発が再現できない理由を3つ (蓄積年数/特許/データ/オペ等)",
+            "シーズコードを必ず引用し、TRL/成熟度に触れる",
+            "他社が真似ようとしたら何年かかるかを推定",
+        ],
+        "anti_pattern": "『独自技術』『コア競争力』のような名詞だけの抽象。",
+    },
+    "marketSize": {
+        "label": "TAM / SAM / SOM (数値根拠付き)",
+        "chars": 260,
+        "must_include": [
+            "TAM (全体市場) — 数値 + (出典: 〜) または (推定: 〜)",
+            "SAM (当社が狙えるサブセット) — 数値 + 根拠",
+            "SOM (3年で取りに行く) — 数値 + 計算式 (例: 単価×顧客数×頻度)",
+        ],
+        "anti_pattern": "TAM 1つだけ。出典なし。『大きい市場』のような形容。",
+    },
+    "goToMarket": {
+        "label": "GTM (Phase × チャネル × 獲得KPI)",
+        "chars": 240,
+        "must_include": [
+            "Phase 1〜3 の構造 (各Phaseは期間明示)",
+            "各Phaseのチャネル + 獲得KPI (数値: 店舗数/顧客数/売上)",
+            "Phase 1 で証明したい仮説を1つ",
+        ],
+        "anti_pattern": "『マーケティング強化』『SNS活用』のような汎用語。",
+    },
+    "businessModel": {
+        "label": "ビジネスモデル / Unit Economics (LTV-CAC)",
+        "chars": 220,
+        "must_include": [
+            "単価 × 頻度 × 原価 で月次/年次の貢献利益を計算",
+            "LTV / CAC の想定値 + 回収期間 (月数)",
+            "スケール時に効くレバー (固定費/変動費の構造)",
+        ],
+        "anti_pattern": "『高単価で高収益』のような定性記述。",
+    },
+    "competitors": {
+        "label": "競合ポジショニング (2軸マップ)",
+        "chars": 200,
+        "must_include": [
+            "ポジショニング軸を2つ明示 (例: 機能性 × 本格風味)",
+            "主要競合 3社 を軸上に配置",
+            "自社が取りに行くスポット (どの象限が空いているか)",
+        ],
+        "anti_pattern": "『差別化要素』を列挙するだけ。位置取りなし。",
+    },
+    "roadmap": {
+        "label": "ロードマップ & 検証実験",
+        "chars": 280,
+        "must_include": [
+            "Phase 毎にマイルストーン + 期間",
+            "各 Phase で検証する仮説 + 成功指標 (数値)",
+            "Kill criteria (これを下回ったら撤退する閾値)",
+        ],
+        "anti_pattern": "『〜を進める』『〜に取り組む』の連発。検証指標なし。",
+    },
+    "risks": {
+        "label": "リスクと打ち手 (Mitigation)",
+        "chars": 220,
+        "must_include": [
+            "上位 3 リスク (市場/技術/組織のうち2分類以上をカバー)",
+            "各リスクに 影響度 (大/中/小) + 発生確率 (高/中/低)",
+            "各リスクに 具体的な打ち手 (誰が何をいつまでに)",
+        ],
+        "anti_pattern": "リスクの列挙だけで打ち手がない。打ち手が『要検討』。",
+    },
+    "ask": {
+        "label": "Ask (予算・人員・Go/No-Go ゲート)",
+        "chars": 160,
+        "must_include": [
+            "予算 (億円) — 内訳を 2 区分以上 (R&D/マーケ/人件費 等)",
+            "人員 (FTE と職種、社内転籍/外部採用の別)",
+            "Go/No-Go ゲート (時期と判定基準)",
+        ],
+        "anti_pattern": "予算総額だけ。判定基準なし。",
+    },
+}
+
+
+def _seed_block(seeds: list) -> str:
+    """Format linked seeds for prompt inclusion."""
+    if not seeds:
+        return "(なし — 自社シーズとの接続が無いと採択は難しいため、必要なら接続を提案する)"
+    lines = []
+    for s in seeds[:6]:
+        code = s.get("code") or s.get("id") or "?"
+        name = s.get("name") or ""
+        summary = (s.get("summary") or "").strip()
+        readiness = s.get("readiness")
+        category = s.get("category") or ""
+        ip = s.get("ipStatus") or ""
+        constraints = s.get("constraints") or []
+        lines.append(
+            f"- [{code}] {name} ({category}) — TRL/成熟度 {readiness}%\n"
+            f"  概要: {summary}\n"
+            f"  IP: {ip or '記載なし'}\n"
+            f"  制約: {' / '.join(constraints) if constraints else '記載なし'}"
+        )
+    return "\n".join(lines)
+
+
+def _article_block(articles: list) -> str:
+    if not articles:
+        return "(なし)"
+    lines = []
+    for a in articles[:5]:
+        title = a.get("title") or ""
+        source = a.get("source") or ""
+        date = a.get("date") or ""
+        summary = a.get("summary")
+        if isinstance(summary, list):
+            summary_txt = " / ".join(s for s in summary if s)
+        else:
+            summary_txt = str(summary or "")
+        lines.append(f"- 「{title}」 ({source}, {date})\n  要点: {summary_txt[:400]}")
+    return "\n".join(lines)
+
+
+def _existing_block(existing: dict) -> str:
+    if not existing:
+        return "(まだ何も埋まっていない)"
+    lines = []
+    for k, v in existing.items():
+        if not v:
+            continue
+        crit = FIELD_CRITERIA.get(k, {})
+        label = crit.get("label", k)
+        s = v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+        lines.append(f"- {label}: {s[:300]}")
+    return "\n".join(lines) if lines else "(まだ何も埋まっていない)"
+
+
+# Few-shot examples — 採択済みの "Air Beer" 案件 (CO2循環ビール) を使い、
+# 各フィールドが「役員レビュー水準」とはどういうものかを LLM に教える。
+# 他のアイデア (例: Sober Wellness) と内容がぶつからないよう、別案件で例示することで
+# LLM が構造を学習し、コンテンツを丸コピしないように設計。
+FEW_SHOT_EXAMPLES = {
+    "problem": "EU CBAM が 2026 年 1 月から本格適用され、輸入飲料の炭素税負担が +12〜18% になる (出典: 欧州委員会 2025 年告示)。一方で Z 世代の 67% がカーボンニュートラル製品に支払い意欲を持つ (出典: Nielsen 2024)。既存ビール製造の発酵 CO2 を循環利用する技術は、関税回避とブランド価値の両立に必要であり、欧州主要 3 国の流通網が整う 2026 年内が立ち上げの最適タイミングである。",
+    "customer": "ESG 調達基準を持つ欧州プレミアム外食チェーン (店舗数 200 以上、平均客単価 €60 超)。『サステナ認証付き飲料を仕入れたいが、現行サプライヤーの値上げ圧力で取り扱い停止に追い込まれる』状況にある。既存代替案はオーガニックビール各社だが、製造段階の CO2 排出は削減できておらず、外食事業者からは『マーケ訴求が弱い』と評価される。",
+    "solution": "ビール発酵で発生する CO2 を 95% 回収し同一製品に再注入する真の循環設計ビール。CO2-LOOP で大気放出ゼロを担保し、PAPER-PAK で容器を非 PET 化。プレミアム 350ml 缶 €4.20 (国内 ¥680) で外食 BtoB と限定小売を併走させる。",
+    "unfairAdvantage": "CO2-LOOP は試運転 18 ヶ月の実プラント稼働実績があり TRL 78%、後発が同水準に達するには最短 6 年。PAPER-PAK は 2 社共同特許 (JP/EP) で外部ライセンス不可。発酵 CO2 回収率 95% は社内検証データで担保され、競合 Heineken の排出削減プログラム (削減率 30%) と桁が違う。",
+    "marketSize": "TAM: 欧州プレミアム炭酸飲料 $14B + 日本サステナ・プレミアム飲料 $3B = $17B (出典: Statista 2028 予測)。SAM: ESG 認証取得・客単価 €40 以上の外食チャネル + 高感度小売 1,800 店舗で $4.2B (推定: TAM × チャネル捕捉率 25%)。SOM: 3 年で年間 GMV 50 億円 (店舗 800 × 月販 5,200 本 × 単価 €4.2)。",
+    "goToMarket": "Phase 1 (〜2026 Q4): Tesco UK + REWE DE 計 200 店舗テスト、KPI = 月販 32 万本・カテゴリ ROI 18% で本格展開判定。Phase 2 (2027 H1): 欧州 3 国 + エアライン 2 社で 800 店舗、KPI = リピート率 35%・ロス率 8% 以下。Phase 3 (2027 Q4-): アジア展開 + CO2-LOOP 外販事業化、KPI = ライセンス収入 12 億円。",
+    "businessModel": "本体販売: 単価 ¥680 × 月販 4,800 本 × 年 12 ヶ月 = 年 LTV (1 店舗) ¥3,916 万、原価率 41% で貢献利益 ¥2,310 万。CO2-LOOP 外販: ライセンス料 5,000 万円/社 × 想定 5 社 = 年 2.5 億円 (限界利益率 78%)。スケール時は外販事業の固定収入が主力ビール事業のヘッジに効き、為替・市況リスクを構造的に低減できる。",
+    "competitors": "縦軸『製造段階の CO2 削減度』× 横軸『プレミアム価格訴求度』。Heineken は CO2 削減 30% で価格訴求は標準、Carlsberg Snap Pack は包装のみで価格は弱、Coca-Cola Plant Bottle は容器のみで製造変えず。当社は『削減 95% × プレミアム』の右上スポットが空白で、3 シーズの組合せで唯一占有可能。",
+    "roadmap": "Phase 1 (2026 Q3-Q4): プロト試作 + 欧州小売 2 社で 200 店舗テスト。仮説『プレミアム単価でもカテゴリ ROI 18% を超える』。Kill: ROI 12% 未満なら撤退。Phase 2 (2027 H1): 欧州本格ローンチ + 機内食採用。仮説『リピート率 35%』。Kill: 22% 未満。Phase 3 (2027 Q4-): アジア展開 + CO2-LOOP 外販。仮説『ライセンス 5 社獲得』。",
+    "risks": "①欧州 CBAM 認証取得遅延 (影響:大/確率:中 — 打ち手: 2026 Q1 までに第三者認証 ISO 14067 取得、薬事+認証専任 1 名配置)。②紙容器の冷蔵物流耐性 (影響:中/確率:高 — 打ち手: パッケージ強化 R&D を 2026 Q3 までに完了、DHL 欧州循環便で輸送試験)。③既存ビール容器ラインの稼働率影響 (影響:中/確率:中 — 打ち手: 別工場専用ラインで分離、既存事業の生産計画と切り離し)。",
+    "ask": "予算 3.2 億円 (R&D 1.4 / 欧州マーケ 1.0 / 人件費 0.5 / 認証 0.3)。5.5 FTE (R&D 2 名社内転籍、欧州事業開発 2 名外部採用、薬事 0.5 名、CO2-LOOP 外販 1 名)。Go/No-Go: 2026 年 12 月末、Phase 1 月販 32 万本 + ROI 18% 以上を判定基準とする。",
+}
+
+
+def _draft_prompt(field: str, payload: dict) -> str:
+    crit = FIELD_CRITERIA.get(field)
+    if not crit:
+        return ""
+    title = (payload.get("title") or "(無題)").strip()
+    codename = (payload.get("codename") or "").strip()
+    seeds = payload.get("linkedSeeds") or []
+    articles = payload.get("linkedArticles") or []
+    existing = payload.get("existingFields") or {}
+
+    must = "\n".join(f"  - {b}" for b in crit["must_include"])
+    example = FEW_SHOT_EXAMPLES.get(field, "")
+
+    return f"""あなたはアサヒグループホールディングス・新規事業推進室の上級戦略コンサルタント。
+役員会 (社長 / CFO / CTO) に提出する事業提案書の「{crit['label']}」セクションを書く。
+役員が読んで「これは投資判断できる」と感じる水準まで仕上げる。
+
+# 参考例 — 別案件「Air Beer」(CO2 循環ビール、採択済) の同フィールドの良い回答
+
+{example}
+
+## なぜこれが良いか (構造を学ぶこと、内容は流用しないこと)
+- 最初の一文で結論を断言している (PEEL の Point)
+- 数値が出典または推定根拠とセットで書かれている
+- シーズコード (CO2-LOOP / PAPER-PAK 等) を明示的に引用
+- 抽象語に逃げず、具体的な動詞・固有名詞・数字で構成
+- 必須要素を全て満たしている
+
+# あなたが書く本案件のアイデア
+タイトル: {title}{' (#' + codename + ')' if codename else ''}
+
+# 引用された業界シグナル (記事 — 必ずこの記事の事実を最低 1 つ引用すること)
+{_article_block(articles)}
+
+# 接続された自社シーズ (アサヒの独自技術資産 — 必ずシーズコードを引用すること)
+{_seed_block(seeds)}
+
+# 既に埋まっている他セクション (整合させること、矛盾させないこと)
+{_existing_block(existing)}
+
+# 「{crit['label']}」の品質要件 (役員レビュー水準)
+必須要素 (全て含めること):
+{must}
+
+避けるべきパターン:
+  - {crit['anti_pattern']}
+  - 上の参考例の文章を流用すること (構造だけ参考にし、内容は本案件用に書き起こすこと)
+
+# 文体ルール (厳守)
+- 結論先行 (PEEL: Point → Evidence → Example → Link)。最初の一文で結論を断言する。
+- 数字を最低 1 つ含む。出典がある場合は「(出典: 〜)」、推定なら「(推定: 〜)」と明記。
+- 禁則語: 「〜と思われる」「〜可能性がある」「〜かもしれない」「検討する」「推進する」「強化する」。判断不能なものは「未検証」と明記。
+- 抽象語禁止: 「イノベーション」「シナジー」「差別化」「プラットフォーム」「ソリューション」は具体名詞に置換。
+- 文体は断定の常体 (〜である / 〜する)。「ですます調」は使わない。
+- 自社シーズが接続されている場合、最低 1 つはシーズコードを引用する。
+- 引用された記事の事実 (数値・固有名詞) を最低 1 つ使う (記事がある場合)。
+- 文字数: {crit['chars']}字以内 (これを超えたら必ず削る)。
+
+# 出力フォーマット (JSON のみ、他のテキストは一切出力しない)
+{{
+  "draft": "初稿。要件を全て満たす日本語テキスト。",
+  "critique": "役員 (CFO 視点) が突っ込みそうな弱点を 3 つ。各 1 行。",
+  "final": "critique を反映して書き直した最終版。{crit['chars']}字以内。"
+}}
+"""
+
+
+DRAFT_CRITIQUE_FALLBACK = {
+    "problem": "①『24 ヶ月以内』の根拠が弱い — DCF 劣化の感度分析を添付すべき。 ②既存ビール DCF の前提となる為替・原材料推移シナリオが未明示。 ③構造変化の不可逆性 (リバウンド可能性) への言及が欠けている。",
+    "customer": "①ペルソナ N=120 の代表性が弱い — 都市部 32 歳でも所得帯で行動が二分する可能性。 ②『パフォーマンスを落とせない』の定義が主観的。睡眠スコア等の客観指標で補強すべき。 ③既存代替案の不満が官能評価のみ。価格弾力性データも要確認。",
+    "solution": "①3 シーズの組合せが本当に同時提供できるか、生産工程上の干渉リスクが未検証。 ②単価 480 円の根拠が弱い (競合との価格比較が必要)。 ③D2C と外食 BtoB のチャネル間カニバリ設計が未提示。",
+    "unfairAdvantage": "①『再現に最低 8 年』の根拠が社内推定のみ — 第三者の特許 / TRL 評価で裏付け必要。 ②3 シーズ組合せの IP 保護戦略 (組合せ特許) の有無。 ③シーズ自体の社外ライセンス可能性、つまり競合が取得するリスクへの言及なし。",
+    "marketSize": "①SAM のプレミアム比率 32% の出典が薄い — Euromonitor の追加レイヤーで裏取り必要。 ②SOM 計算式の年間購入回数 18 が楽観的、リテンション前提の検証が必要。 ③為替前提 ($1=¥) が固定で、感度分析が無い。",
+    "goToMarket": "①Phase 1 のゼロプルーフバー 5 店舗で得られる学習が限定的 — 客層の代表性が弱い。 ②各 Phase 間の『移行判断基準』が KPI 達成だけで、ピボット選択肢が未提示。 ③CAC が Phase で変化する想定 (D2C → GMS) の数値根拠が薄い。",
+    "businessModel": "①リピート率 40% の根拠が他社事例なしで楽観的。 ②原価率 38% にスケール時の物流費が含まれているか不明。 ③外食 BtoB 単価 8 万円/月の値決めロジック (店舗側の月販想定) が示されていない。",
+    "competitors": "①2 軸の選定理由が薄い — 顧客が実際に意思決定で重視する軸かを購買データで裏取り必要。 ②各社の位置取りが定性評価。可能なら定量スコア (NPS / SOV) で示すべき。 ③新規参入 (大手 CPG の Sober Lifestyle ブランド立ち上げ) のリスクが未言及。",
+    "roadmap": "①Kill criteria の閾値が単一指標 — 複合指標 (販売 + リピート + 粗利) で見るべき。 ②Phase 間の横並び比較不能 (各 Phase の指標が不揃い)。 ③Phase 3 のリスク (海外参入の規制) が未織込。",
+    "risks": "①リスク 3 つで MECE が弱い — 為替・原材料・人材確保が抜け落ちている。 ②打ち手の所要工数 / コストが定量化されていない。 ③リスク発生時のセーフティネット (撤退時の損切り基準) が未提示。",
+    "ask": "①予算配分の R&D 0.8 億円が他案件平均より低い — 機能性表示取得の実費が含まれているか要確認。 ②外食アライアンス担当の 1 名で欧州 + 国内をカバーするのは無理がある。 ③Go/No-Go の判定者と権限が不明 (役員何名以上の承認が必要か)。",
+}
+
+
+def _draft_fallback(field: str, payload: dict) -> str:
+    """Local sample when API key is missing or call fails."""
+    samples = {
+        "problem": "GLP-1 普及で外食ビール客単価が前年比 -8% (出典: 帝国DB 2025)。一方ノンアル来店動機は同期間で +24% (出典: ぐるなび来店調査)。「飲む量×動機」の二重シフトは構造変化であり、既存ビール事業の DCF が 2027 年以降に劣化するため、24 ヶ月以内に新ブランドを立ち上げる必要がある。",
+        "customer": "都市部 32 歳・年収 800 万円・週 3 で会食する管理職。『接待後にもう一杯欲しいが、翌朝のパフォーマンスを落とせない』時に、現状はノンアルビールで代替するが「子供っぽい / 体験が貧しい」と感じている。既存代替案は機能性ノンアルだが、官能評価が本格ビールに対して -1.2 点 (社内パネル N=120) で満足度が低い。",
+        "solution": "「飲む時間を、自分の状態を上げる時間に変える」気分デザイン・プレミアムノンアル。REAL-ZERO で本格風味を担保し、Hop-β でリラックス機能性、LB-4012 で腸内コンディションを同時に提供する複合機能型。350ml 缶 480 円 / D2C サブスク 4,980 円月で、外食 BtoB と限定小売を併走させる。",
+        "unfairAdvantage": "REAL-ZERO 由来の官能評価データ 20 年分 (社内パネル N=12,000 累積) は再現に最低 8 年要する。Hop-β は特許出願中 (JP 2024-XXXXXX) で機能性表示の根拠データを保有。LB-4012 は TRL 78%・パイロット生産実績あり。3 つの組合せ自体が国内外に存在せず、競合が同水準に達するまで推定 5-7 年。",
+        "marketSize": "TAM: 国内ノンアル飲料 $2.5B + 海外ノンアル $28B = $30.5B (出典: Euromonitor 2030 予測)。SAM: プレミアム機能性ノンアル (単価 400 円以上 × 健康志向セグメント) で国内 $0.8B (推定: TAM × プレミアム比率 32%)。SOM: 3 年で国内 50 億円 GMV (単価 480 円 × 年間購入回数 18 × 顧客 580K)。",
+        "goToMarket": "Phase 1 (〜2026 Q4): 都内ゼロプルーフバー 5 店舗で先行、KPI = 月間販売数 8,000 本・NPS 50 以上で仮説検証。Phase 2 (2027 H1): 高感度 CVS 200 店 + D2C で 2 万人会員、KPI = リピート率 40%・LTV 18,000 円。Phase 3 (2027 H2-): GMS 1,500 店 + 欧米テスト、KPI = GMV 50 億円。",
+        "businessModel": "単価 480 円 × 月間購入 6 本 × 12 ヶ月 = 年間 LTV 34,560 円、原価率 38% で貢献利益 21,427 円。CAC は D2C 想定で 8,000 円、回収期間 4.5 ヶ月。スケール時は外食 BtoB の固定単価 (1 店舗 8 万円/月) が損益分岐の安定剤として効き、小売チャネルの値引き耐性を確保できる。",
+        "competitors": "ポジショニング軸: 縦軸『機能性の強度』× 横軸『風味の本格度』。Athletic Brewing は本格度高だが機能性は弱い、Recess は機能性高だが風味が水様、Kin Euphorics はライフスタイル軸でアルコール代替の文脈。当社は『本格度高 × 機能性高』の右上スポットが空白で、3 シーズの組み合わせで唯一占有可能。",
+        "roadmap": "Phase 1 (2026 Q3-Q4): プロト 5 SKU 試作、外食 5 店舗テスト。仮説『プレミアム単価でも月 8,000 本売れる』。Kill criteria: 月販 4,000 本未満なら撤退。Phase 2 (2027 H1): D2C ローンチ、機能性表示取得。仮説『リピート率 40% を達成』。Kill: リピート 25% 未満。Phase 3 (2027 H2): GMS 拡大。仮説『年間 GMV 50 億円』。",
+        "risks": "①機能性表示取得遅延 (影響:大 / 確率:中 — 打ち手: 申請を 2026 Q1 に前倒し、薬事担当 1 名専任配置)。②既存ビール事業とのカニバリ (影響:中 / 確率:高 — 打ち手: 別ブランド・別法人スキームで意思決定を独立化、6 ヶ月後にカニバリ率を測定)。③プレミアム単価の受容性 (影響:大 / 確率:中 — 打ち手: Phase 1 でゼロプルーフバー先行検証、価格弾力性データを取得)。",
+        "ask": "予算 1.8 億円 (R&D 0.8 / マーケ 0.6 / 人件費 0.4)。人員 4.5 FTE (R&D 2 名社内転籍、ブランド 1 名外部採用、薬事 0.5 名、外食アライアンス 1 名)。Go/No-Go ゲート: 2026 年 12 月末、Phase 1 月販 8,000 本 + NPS 50 以上を判定基準とする。",
+    }
+    return samples.get(field, "")
+
+
+def llm_draft(field: str, payload: dict) -> dict:
+    """Call Claude to draft an exec-quality section. Returns dict with 'final' + metadata."""
+    crit = FIELD_CRITERIA.get(field)
+    if not crit:
+        return {"ok": False, "reason": "unknown_field", "field": field}
+
+    if not ANTHROPIC_API_KEY:
+        return {
+            "ok": False, "reason": "no_api_key", "field": field,
+            "final": _draft_fallback(field, payload),
+            "critique": DRAFT_CRITIQUE_FALLBACK.get(field, ""),
+            "model": None,
+        }
+
+    body = {
+        "model": LLM_MODEL,
+        "max_tokens": 1500,
+        "messages": [{"role": "user", "content": _draft_prompt(field, payload)}],
+    }
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read())
+    except Exception as e:
+        print(f"[draft] fail for field='{field}': {e}", file=sys.stderr)
+        return {
+            "ok": False, "reason": f"api_error: {type(e).__name__}", "field": field,
+            "final": _draft_fallback(field, payload),
+            "critique": DRAFT_CRITIQUE_FALLBACK.get(field, ""),
+            "model": LLM_MODEL,
+        }
+
+    txt = "".join(blk.get("text", "") for blk in data.get("content", []) if blk.get("type") == "text").strip()
+    # Best-effort JSON extraction
+    m = re.search(r"\{.*\}", txt, re.DOTALL)
+    parsed = None
+    if m:
+        try:
+            parsed = json.loads(m.group(0))
+        except Exception:
+            parsed = None
+    final = (parsed or {}).get("final") or (parsed or {}).get("draft") or txt
+    return {
+        "ok": True, "field": field,
+        "final": (final or "").strip(),
+        "draft": (parsed or {}).get("draft", ""),
+        "critique": (parsed or {}).get("critique", ""),
+        "model": LLM_MODEL,
+    }
+
+
 def _llm_prompt(title: str, desc: str, tags: list, seeds: list, seed_names: list) -> str:
     return f"""あなたはアサヒグループホールディングスの新規事業R&D部門の情報アナリスト。
 以下の記事を、研究開発チームが「朝1分で把握できる」よう**日本語3行**で要約してください。
@@ -703,13 +1055,30 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return
             self._serve_sources()
             return
+        if self.path.startswith("/api/draft/criteria"):
+            # Lightweight read of field labels + char limits + must_include for the editor
+            slim = {k: {"label": v["label"], "chars": v["chars"], "must_include": v["must_include"]}
+                    for k, v in FIELD_CRITERIA.items()}
+            self._send_json({"fields": slim, "llmEnabled": bool(ANTHROPIC_API_KEY), "model": LLM_MODEL if ANTHROPIC_API_KEY else None})
+            return
         return super().do_GET()
 
     def do_POST(self):
         if self.path.startswith("/api/sources"):
             self._mutate_source("POST")
             return
+        if self.path.startswith("/api/draft"):
+            self._serve_draft()
+            return
         self.send_response(405); self.end_headers()
+
+    def _serve_draft(self):
+        body = self._read_json_body()
+        field = (body.get("field") or "").strip()
+        if field not in FIELD_CRITERIA:
+            return self._send_json({"error": "unknown field"}, status=400)
+        result = llm_draft(field, body)
+        return self._send_json(result, status=200 if result.get("final") else 500)
 
     def do_PATCH(self):
         if self.path.startswith("/api/sources"):
