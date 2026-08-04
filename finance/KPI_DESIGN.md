@@ -155,5 +155,5 @@
 - [ ] 解約理由コード表の確定(§3.3)
 - [ ] UTM命名規則の策定(channel/campaign の表記ゆれ防止)
 - [x] モデルLTVの初版作成(価格 4,980円・初回半額 2,490円、シナリオ3本)→ `finance/MODEL_LTV.md` / `finance/model_ltv.py`
-- [ ] 13週資金繰り表の初版(設立費用・初回OEMロット発注を反映)— finance-controller が対応可
+- [x] 13週資金繰り表の初版+月次PL/CF計画 → `finance/PL_CF_PLAN.md` / `finance/financial_model.py`(初期資金500万では中立でもショート。対策の意思決定が必要)
 - [ ] ベンチマーク裏取り(market-researcher へ依頼)
