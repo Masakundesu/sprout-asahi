@@ -1,0 +1,29 @@
+month,metric,segment,value,unit,note
+2026-09,new_customers,total,,人,当月初回決済のユニーク顧客数
+2026-09,new_customers,meta,,人,チャネル別に行を追加
+2026-09,new_customers,google,,人,
+2026-09,new_customers,affiliate,,人,
+2026-09,ad_spend,meta,,円,媒体CSVと突合済みであること
+2026-09,ad_spend,google,,円,
+2026-09,ad_spend,affiliate,,円,成果報酬含む
+2026-09,cac,total,,円,(広告費+成果報酬+販促費)/新規顧客数
+2026-09,active_subscribers,total,,人,月末時点アクティブ定期会員数(North Star)
+2026-09,mrr,total,,円,アクティブ会員数×実収月額
+2026-09,f2_rate,cohort_latest,,%,直近判定可能コホートのF2転換率
+2026-09,churn_rate,total,,%,当月解約数/月初アクティブ会員数
+2026-09,skip_count,total,,件,スキップは解約と区別
+2026-09,cancel_reason_1,効果実感なし,,件,
+2026-09,cancel_reason_2,価格,,件,
+2026-09,cancel_reason_3,習慣化せず,,件,
+2026-09,cancel_reason_4,在庫余り,,件,
+2026-09,cancel_reason_5,体に合わない,,件,件数問わず個別レビュー必須
+2026-09,cancel_reason_6,乗り換え,,件,
+2026-09,cancel_reason_7,その他,,件,
+2026-09,revenue_net,total,,円,値引後実収売上
+2026-09,gross_margin,total,,円,限界利益(KPI_DESIGN.md §2.3の定義)
+2026-09,gross_margin_rate,total,,%,
+2026-09,aov,total,,円,平均注文単価(値引後)
+2026-09,ltv_12m_model,total,,円,モデルLTV(実績が貯まるまで)
+2026-09,cac_payback,total,,ヶ月,CAC/月あたり限界利益
+2026-09,inventory_months,total,,ヶ月,在庫数/直近3ヶ月平均出荷
+2026-09,cash_balance,total,,円,月末現預金残高
