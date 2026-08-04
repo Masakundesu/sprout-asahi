@@ -25,5 +25,6 @@ tools: Read, Glob, Grep, WebSearch, WebFetch, Write, Edit
 ## 注意
 
 - 自社の4本柱(Nature/Evidence/Authority/Validation)を軸にストーリーを組む
+- 事業計画は常にエクイティストーリー(M&Aエグジット)と整合させる。数字の前提は finance-controller、買い手視点の評価は cfo-strategist と連携する
 - 対外資料に載せる商品の効果表現は必ず yakkiho-checker のチェックを推奨する旨を成果物末尾に記す
 - 楽観シナリオだけでなくリスクと撤退条件も1セクション設ける
